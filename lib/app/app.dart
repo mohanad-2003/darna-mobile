@@ -22,6 +22,7 @@ class DarnaApp extends StatelessWidget {
       ],
       theme: ThemeData(
         useMaterial3: true,
+        fontFamily: 'Tajawal',
         colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF0F766E)),
         cardTheme: const CardThemeData(elevation: 1),
       ),
