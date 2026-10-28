@@ -55,6 +55,13 @@ class AccountScreen extends ConsumerWidget {
               trailing: const Icon(Icons.chevron_left),
               onTap: () => context.push('/admin/queue'),
             ),
+          if (me.platformRole == 'MODERATOR' || me.platformRole == 'ADMIN')
+            ListTile(
+              leading: const Icon(Icons.flag_outlined),
+              title: const Text('البلاغات'),
+              trailing: const Icon(Icons.chevron_left),
+              onTap: () => context.push('/admin/reports'),
+            ),
           ListTile(
             leading: const Icon(Icons.logout),
             title: const Text('تسجيل الخروج'),

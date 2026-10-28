@@ -115,7 +115,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
               ),
               if (kDebugMode) ...[
                 const SizedBox(height: 8),
-                Text('وضع التطوير: الرمز يظهر في نافذة الخادم (npm run dev) وليس في رسالة.',
+                Text('وضع التطوير: الرمز لا يصل برسالة، بل يظهر في سجل الخادم (Logs في Render، أو نافذة npm run dev محلياً).',
                     style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.tertiary)),
               ],
               const SizedBox(height: 32),

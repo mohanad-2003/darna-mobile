@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 
 import '../features/account/account_screen.dart';
 import '../features/admin/admin_queue_screen.dart';
+import '../features/admin/admin_reports_screen.dart';
 import '../features/admin/admin_review_screen.dart';
 import '../features/auth/login_screen.dart';
 import '../features/auth/name_screen.dart';
@@ -34,6 +35,7 @@ final appRouter = GoRouter(
       builder: (_, state) => PropertyDetailScreen(propertyId: state.pathParameters['id']!),
     ),
     GoRoute(path: '/admin/queue', builder: (_, _) => const AdminQueueScreen()),
+    GoRoute(path: '/admin/reports', builder: (_, _) => const AdminReportsScreen()),
     GoRoute(
       path: '/admin/review/:id',
       builder: (_, state) => AdminReviewScreen(propertyId: state.pathParameters['id']!),

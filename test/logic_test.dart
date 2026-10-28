@@ -5,6 +5,7 @@ import 'package:darna/features/auth/login_screen.dart';
 import 'package:darna/features/listings/listing_repository.dart';
 import 'package:darna/features/properties/format.dart';
 import 'package:darna/features/properties/models.dart';
+import 'package:darna/features/properties/property_repository.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -88,6 +89,28 @@ void main() {
 
     test('falls back to a date after a week', () {
       expect(timeAgoAr(now.subtract(const Duration(days: 10)), now: now), '2026/10/18');
+    });
+  });
+
+  group('SearchFilters', () {
+    test('counts only the filters from the sheet', () {
+      expect(const SearchFilters(purpose: 'SALE', locationId: 'x').activeCount, 0);
+      final f = const SearchFilters().copyWith(
+        propertyTypes: {'HOUSE'},
+        minPrice: '1000',
+        minBedrooms: 2,
+        sort: 'price_asc',
+      );
+      expect(f.activeCount, 4);
+    });
+
+    test('clearing the sheet keeps the purpose and location', () {
+      final f = const SearchFilters(purpose: 'RENT', locationId: 'x', locationName: 'نابلس')
+          .copyWith(propertyTypes: {'APARTMENT'}, maxPrice: '900', sort: 'price_desc');
+      final cleared = f.clearedSheet();
+      expect(cleared.activeCount, 0);
+      expect(cleared.purpose, 'RENT');
+      expect(cleared.locationName, 'نابلس');
     });
   });
 }

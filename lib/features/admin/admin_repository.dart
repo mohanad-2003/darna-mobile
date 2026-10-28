@@ -35,6 +35,57 @@ const decisionNames = {
   'REINSTATED': 'إعادة نشر',
 };
 
+class ReportItem {
+  ReportItem({
+    required this.id,
+    required this.reason,
+    this.description,
+    required this.status,
+    this.resolution,
+    required this.propertyId,
+    required this.propertyTitle,
+    required this.propertyStatus,
+    this.reporterName,
+    required this.createdAt,
+  });
+
+  final String id;
+  final String reason;
+  final String? description;
+  final String status;
+  final String? resolution;
+  final String propertyId;
+  final String propertyTitle;
+  final String propertyStatus;
+  final String? reporterName;
+  final DateTime createdAt;
+
+  factory ReportItem.fromJson(Json j) => ReportItem(
+        id: j['id'] as String,
+        reason: j['reason'] as String,
+        description: j['description'] as String?,
+        status: j['status'] as String,
+        resolution: j['resolution'] as String?,
+        propertyId: j['propertyId'] as String,
+        propertyTitle: j['propertyTitle'] as String,
+        propertyStatus: j['propertyStatus'] as String,
+        reporterName: j['reporterName'] as String?,
+        createdAt: DateTime.parse(j['createdAt'] as String),
+      );
+}
+
+const reportReasonNames = {
+  'FRAUD': 'احتيال أو نصب',
+  'INCORRECT_INFORMATION': 'معلومات غير صحيحة',
+  'DUPLICATE': 'إعلان مكرر',
+  'UNAVAILABLE_PROPERTY': 'العقار لم يعد متاحاً',
+  'INAPPROPRIATE_CONTENT': 'محتوى غير لائق',
+  'OTHER': 'سبب آخر',
+};
+
+final reportsProvider = FutureProvider.autoDispose.family<List<ReportItem>, String>(
+    (ref, status) => ref.watch(adminRepositoryProvider).reports(status));
+
 final adminRepositoryProvider =
     Provider<AdminRepository>((ref) => AdminRepository(ref.watch(apiClientProvider)));
 
@@ -55,6 +106,14 @@ class AdminRepository {
     final res = await _api.get('/admin/properties/pending', query: {'limit': 50});
     return (res['data'] as List).map((e) => OwnerListing.fromJson(e as Json)).toList();
   }
+
+  Future<List<ReportItem>> reports(String status) async {
+    final res = await _api.get('/admin/reports', query: {'status': status, 'limit': 50});
+    return (res['data'] as List).map((e) => ReportItem.fromJson(e as Json)).toList();
+  }
+
+  Future<void> updateReport(String id, String status, {String? resolution}) =>
+      _api.patch('/admin/reports/$id', body: {'status': status, 'resolution': ?resolution});
 
   Future<ModerationView> view(String id) async {
     final data = (await _api.get('/admin/properties/$id'))['data'] as Json;

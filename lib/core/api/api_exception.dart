@@ -49,6 +49,7 @@ String? _arabic(String code) => const {
       'PROFILE_INCOMPLETE': 'أضف اسمك في حسابك أولاً',
       'STATUS_CHANGED': 'تغيّرت حالة الإعلان، حدّث الصفحة وحاول مجدداً',
       'INVALID_STATE_TRANSITION': 'هذا الإجراء غير مسموح في الحالة الحالية',
+      'REPORT_ALREADY_OPEN': 'أبلغت عن هذا الإعلان سابقاً وبلاغك قيد المراجعة',
       'MEDIA_LIMIT_REACHED': 'وصلت إلى الحد الأقصى من الصور',
       'INTERNAL_ERROR': 'حدث خطأ في الخادم، حاول لاحقاً',
     }[code];

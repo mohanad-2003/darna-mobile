@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../auth/ensure_name.dart';
 import '../notifications/notifications_repository.dart';
 
+import 'filters_sheet.dart';
 import 'listings_controller.dart';
 import 'models.dart';
 import 'property_card.dart';
@@ -97,6 +98,21 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     icon: const Icon(Icons.close),
                     onPressed: () => controller.setFilters(filters.copyWith(clearLocation: true)),
                   ),
+                Padding(
+                  padding: const EdgeInsetsDirectional.only(start: 8),
+                  child: ActionChip(
+                    avatar: Badge(
+                      isLabelVisible: filters.activeCount > 0,
+                      label: Text('${filters.activeCount}'),
+                      child: const Icon(Icons.tune, size: 18),
+                    ),
+                    label: const Text('تصفية'),
+                    onPressed: () async {
+                      final next = await showFiltersSheet(context, filters);
+                      if (next != null) controller.setFilters(next);
+                    },
+                  ),
+                ),
               ],
             ),
           ),

@@ -11,6 +11,7 @@ import 'listings_controller.dart';
 import 'models.dart';
 import 'property_card.dart';
 import 'property_repository.dart';
+import 'report_sheet.dart';
 
 final propertyDetailProvider = FutureProvider.autoDispose.family<PropertyDetail, String>(
     (ref, id) => ref.watch(propertyRepositoryProvider).detail(id));
@@ -24,7 +25,17 @@ class PropertyDetailScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final detail = ref.watch(propertyDetailProvider(propertyId));
     return Scaffold(
-      appBar: AppBar(),
+      appBar: AppBar(
+        actions: [
+          if (detail.hasValue)
+            PopupMenuButton<String>(
+              onSelected: (_) => _reportListing(context, ref, propertyId),
+              itemBuilder: (_) => const [
+                PopupMenuItem(value: 'report', child: Text('الإبلاغ عن الإعلان')),
+              ],
+            ),
+        ],
+      ),
       body: detail.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(
@@ -45,6 +56,24 @@ class PropertyDetailScreen extends ConsumerWidget {
       ),
       bottomNavigationBar: detail.hasValue ? _ContactBar(detail: detail.requireValue) : null,
     );
+  }
+}
+
+Future<void> _reportListing(BuildContext context, WidgetRef ref, String id) async {
+  if (ref.read(authControllerProvider).value == null) {
+    context.push('/login');
+    return;
+  }
+  final input = await showReportSheet(context);
+  if (input == null || !context.mounted) return;
+  final messenger = ScaffoldMessenger.of(context);
+  try {
+    await ref.read(propertyRepositoryProvider).report(id, input.reason, input.description);
+    messenger.showSnackBar(const SnackBar(content: Text('شكراً لك، وصلنا بلاغك وسنراجعه')));
+  } on ApiException catch (e) {
+    messenger.showSnackBar(SnackBar(
+      content: Text(e.code == 'FORBIDDEN' ? 'لا يمكنك الإبلاغ عن إعلانك' : e.message),
+    ));
   }
 }
 
