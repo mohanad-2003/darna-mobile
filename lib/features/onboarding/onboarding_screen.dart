@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../app/theme.dart';
 import '../../core/widgets/darna_logo.dart';
 
 // The illustrations are drawn on this cream; using it for the screen hides the image edges.
@@ -57,6 +58,11 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Always light: the illustrations are painted on cream and would clash with a dark theme.
+    return Theme(data: AppTheme.light(), child: Builder(builder: _buildLight));
+  }
+
+  Widget _buildLight(BuildContext context) {
     final theme = Theme.of(context);
     final teal = theme.colorScheme.primary;
     return Scaffold(

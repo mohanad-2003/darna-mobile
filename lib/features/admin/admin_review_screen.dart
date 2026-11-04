@@ -184,7 +184,7 @@ class _AdminReviewScreenState extends ConsumerState<AdminReviewScreen> {
   Widget _row(String label, String value, {bool ltr = false, Color? color}) => Padding(
         padding: const EdgeInsets.symmetric(vertical: 3),
         child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          SizedBox(width: 100, child: Text(label, style: const TextStyle(color: Colors.grey))),
+          SizedBox(width: 100, child: Text(label, style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant))),
           Expanded(
             child: Directionality(
               textDirection: ltr ? TextDirection.ltr : Directionality.of(context),

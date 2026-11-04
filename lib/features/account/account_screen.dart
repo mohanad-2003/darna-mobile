@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../app/theme_mode.dart';
 import '../../core/auth/auth_controller.dart';
 import '../auth/login_prompt.dart';
 
@@ -18,7 +19,10 @@ class AccountScreen extends ConsumerWidget {
     }
     if (me == null) {
       return const Scaffold(
-        body: LoginPrompt(message: 'سجّل الدخول لإدارة حسابك ومتابعة استفساراتك'),
+        body: Column(children: [
+          Expanded(child: LoginPrompt(message: 'سجّل الدخول لإدارة حسابك ومتابعة استفساراتك')),
+          SafeArea(top: false, child: _AppearanceTile()),
+        ]),
       );
     }
     return Scaffold(
@@ -62,6 +66,7 @@ class AccountScreen extends ConsumerWidget {
               trailing: const Icon(Icons.chevron_left),
               onTap: () => context.push('/admin/reports'),
             ),
+          const _AppearanceTile(),
           ListTile(
             leading: const Icon(Icons.logout),
             title: const Text('تسجيل الخروج'),
@@ -69,6 +74,38 @@ class AccountScreen extends ConsumerWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _AppearanceTile extends ConsumerWidget {
+  const _AppearanceTile();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final mode = ref.watch(themeModeProvider);
+    return ListTile(
+      leading: const Icon(Icons.brightness_6_outlined),
+      title: const Text('المظهر'),
+      subtitle: Text(themeModeLabel(mode)),
+      trailing: const Icon(Icons.chevron_left),
+      onTap: () async {
+        final picked = await showModalBottomSheet<ThemeMode>(
+          context: context,
+          showDragHandle: true,
+          builder: (_) => SafeArea(
+            child: RadioGroup<ThemeMode>(
+              groupValue: mode,
+              onChanged: (m) => Navigator.of(context).pop(m),
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                for (final m in ThemeMode.values)
+                  RadioListTile<ThemeMode>(value: m, title: Text(themeModeLabel(m))),
+              ]),
+            ),
+          ),
+        );
+        if (picked != null) ref.read(themeModeProvider.notifier).set(picked);
+      },
     );
   }
 }

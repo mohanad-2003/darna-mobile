@@ -81,9 +81,9 @@ class _QueueTile extends ConsumerWidget {
               width: 96,
               height: 96,
               child: cover == null
-                  ? const ColoredBox(
-                      color: Colors.black12,
-                      child: Icon(Icons.home_outlined),
+                  ? ColoredBox(
+                      color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                      child: const Icon(Icons.home_outlined),
                     )
                   : CachedNetworkImage(
                       imageUrl: cover.thumbnailUrl,

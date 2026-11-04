@@ -251,7 +251,7 @@ class _ManageListingScreenState extends ConsumerState<ManageListingScreen> {
                           child: CachedNetworkImage(
                             imageUrl: m.thumbnailUrl,
                             fit: BoxFit.cover,
-                            placeholder: (_, _) => const ColoredBox(color: Colors.black12),
+                            placeholder: (_, _) => ColoredBox(color: Theme.of(context).colorScheme.surfaceContainerHighest),
                             errorWidget: (_, _, _) => const Icon(Icons.broken_image_outlined),
                           ),
                         ),

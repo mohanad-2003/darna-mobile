@@ -1,16 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'router.dart';
+import 'theme.dart';
+import 'theme_mode.dart';
 
-/// Darna's teal, as in the logo and icon.
-const _brandTeal = Color(0xFF0F766E);
-
-class DarnaApp extends StatelessWidget {
+class DarnaApp extends ConsumerWidget {
   const DarnaApp({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return MaterialApp.router(
       title: 'دارنا',
       debugShowCheckedModeBanner: false,
@@ -23,12 +23,9 @@ class DarnaApp extends StatelessWidget {
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
-      theme: ThemeData(
-        useMaterial3: true,
-        fontFamily: 'Tajawal',
-        colorScheme: ColorScheme.fromSeed(seedColor: _brandTeal, primary: _brandTeal, onPrimary: Colors.white),
-        cardTheme: const CardThemeData(elevation: 1),
-      ),
+      theme: AppTheme.light(),
+      darkTheme: AppTheme.dark(),
+      themeMode: ref.watch(themeModeProvider),
     );
   }
 }

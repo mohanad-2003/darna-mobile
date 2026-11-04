@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
+import 'dark_svg_colors.dart';
+
 enum EmptyStateIllustration {
   listings,
   favorites,
@@ -54,6 +56,7 @@ class EmptyStateView extends StatelessWidget {
                           210.0,
                         ),
                         excludeFromSemantics: true,
+                        colorMapper: theme.brightness == Brightness.dark ? const DarkSvgColors() : null,
                       ),
                       const SizedBox(height: 16),
                       Semantics(
