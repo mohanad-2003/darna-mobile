@@ -4,24 +4,27 @@ import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/api/api_exception.dart';
+import '../../core/widgets/empty_state.dart';
 import '../../core/auth/auth_controller.dart';
 import '../../core/time_ago.dart';
 import '../auth/login_prompt.dart';
 import 'inquiries_repository.dart';
 
 Color _statusColor(String status) => switch (status) {
-      'NEW' => Colors.blue,
-      'RESPONDED' => Colors.green,
-      'SPAM' => Colors.red,
-      _ => Colors.grey,
-    };
+  'NEW' => Colors.blue,
+  'RESPONDED' => Colors.green,
+  'SPAM' => Colors.red,
+  _ => Colors.grey,
+};
 
 class InquiriesScreen extends ConsumerWidget {
   const InquiriesScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final signedIn = ref.watch(authControllerProvider.select((a) => a.value != null));
+    final signedIn = ref.watch(
+      authControllerProvider.select((a) => a.value != null),
+    );
     if (!signedIn) {
       return Scaffold(
         appBar: AppBar(title: const Text('الاستفسارات')),
@@ -33,12 +36,19 @@ class InquiriesScreen extends ConsumerWidget {
       child: Scaffold(
         appBar: AppBar(
           title: const Text('الاستفسارات'),
-          bottom: const TabBar(tabs: [Tab(text: 'المستلمة'), Tab(text: 'المرسلة')]),
+          bottom: const TabBar(
+            tabs: [
+              Tab(text: 'المستلمة'),
+              Tab(text: 'المرسلة'),
+            ],
+          ),
         ),
-        body: const TabBarView(children: [
-          _InquiryList(received: true),
-          _InquiryList(received: false),
-        ]),
+        body: const TabBarView(
+          children: [
+            _InquiryList(received: true),
+            _InquiryList(received: false),
+          ],
+        ),
       ),
     );
   }
@@ -51,28 +61,43 @@ class _InquiryList extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final provider = received ? receivedInquiriesProvider : sentInquiriesProvider;
+    final provider = received
+        ? receivedInquiriesProvider
+        : sentInquiriesProvider;
     final inquiries = ref.watch(provider);
 
     return inquiries.when(
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (e, _) => Center(
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Text(e is ApiException ? e.message : 'تعذر التحميل'),
-          const SizedBox(height: 12),
-          FilledButton(onPressed: () => ref.invalidate(provider), child: const Text('إعادة المحاولة')),
-        ]),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(e is ApiException ? e.message : 'تعذر التحميل'),
+            const SizedBox(height: 12),
+            FilledButton(
+              onPressed: () => ref.invalidate(provider),
+              child: const Text('إعادة المحاولة'),
+            ),
+          ],
+        ),
       ),
       data: (items) {
         if (items.isEmpty) {
-          return Center(
-            child: Padding(
-              padding: const EdgeInsets.all(32),
-              child: Text(
-                received ? 'لم يصلك أي استفسار بعد' : 'لم ترسل أي استفسار بعد',
-                textAlign: TextAlign.center,
-              ),
-            ),
+          return EmptyStateView(
+            illustration: EmptyStateIllustration.inquiries,
+            title: received
+                ? 'لم يصلك أي استفسار بعد'
+                : 'ابدأ بسؤال عن عقار يعجبك',
+            description: received
+                ? 'عندما يتواصل معك المهتمون بإعلاناتك، ستجد استفساراتهم هنا.'
+                : 'تصفح العقارات وأرسل استفسارك من صفحة العقار. ستجد محادثاتك هنا.',
+            actionLabel: received ? 'عرض إعلاناتي' : 'تصفح العقارات',
+            onAction: () =>
+                received ? context.push('/my-listings') : context.go('/'),
+            onRefresh: () async {
+              ref.invalidate(provider);
+              await ref.read(provider.future);
+            },
           );
         }
         return RefreshIndicator(
@@ -80,7 +105,8 @@ class _InquiryList extends ConsumerWidget {
           child: ListView.separated(
             itemCount: items.length,
             separatorBuilder: (_, _) => const Divider(height: 1),
-            itemBuilder: (_, i) => _InquiryTile(inquiry: items[i], received: received),
+            itemBuilder: (_, i) =>
+                _InquiryTile(inquiry: items[i], received: received),
           ),
         );
       },
@@ -98,21 +124,42 @@ class _InquiryTile extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final isNew = received && inquiry.status == 'NEW';
     return ListTile(
-      tileColor: isNew ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.06) : null,
+      tileColor: isNew
+          ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.06)
+          : null,
       title: Text(
         received ? (inquiry.senderName ?? 'مهتم') : inquiry.propertyTitle,
-        style: TextStyle(fontWeight: isNew ? FontWeight.bold : FontWeight.normal),
+        style: TextStyle(
+          fontWeight: isNew ? FontWeight.bold : FontWeight.normal,
+        ),
       ),
-      subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        if (received) Text(inquiry.propertyTitle, maxLines: 1, overflow: TextOverflow.ellipsis),
-        Text(inquiry.message, maxLines: 2, overflow: TextOverflow.ellipsis),
-      ]),
-      trailing: Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.end, children: [
-        Text(timeAgoAr(inquiry.createdAt), style: Theme.of(context).textTheme.bodySmall),
-        const SizedBox(height: 4),
-        Text(inquiryStatusNames[inquiry.status] ?? inquiry.status,
-            style: TextStyle(color: _statusColor(inquiry.status), fontSize: 12)),
-      ]),
+      subtitle: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (received)
+            Text(
+              inquiry.propertyTitle,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          Text(inquiry.message, maxLines: 2, overflow: TextOverflow.ellipsis),
+        ],
+      ),
+      trailing: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          Text(
+            timeAgoAr(inquiry.createdAt),
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+          const SizedBox(height: 4),
+          Text(
+            inquiryStatusNames[inquiry.status] ?? inquiry.status,
+            style: TextStyle(color: _statusColor(inquiry.status), fontSize: 12),
+          ),
+        ],
+      ),
       onTap: () => _open(context, ref),
     );
   }
@@ -121,7 +168,12 @@ class _InquiryTile extends ConsumerWidget {
     final repo = ref.read(inquiriesRepositoryProvider);
     // Opening a new inquiry counts as reading it.
     if (received && inquiry.status == 'NEW') {
-      repo.setStatus(inquiry.id, 'READ').then((_) => ref.invalidate(receivedInquiriesProvider), onError: (_) {});
+      repo
+          .setStatus(inquiry.id, 'READ')
+          .then(
+            (_) => ref.invalidate(receivedInquiriesProvider),
+            onError: (_) {},
+          );
     }
     final newStatus = await showModalBottomSheet<String>(
       context: context,
@@ -146,7 +198,8 @@ class _InquirySheet extends StatelessWidget {
   final InquiryItem inquiry;
   final bool received;
 
-  Future<void> _open(String url) => launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+  Future<void> _open(String url) =>
+      launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
 
   @override
   Widget build(BuildContext context) {
@@ -155,61 +208,81 @@ class _InquirySheet extends StatelessWidget {
     return SafeArea(
       child: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-          Text(inquiry.propertyTitle, style: theme.textTheme.titleMedium),
-          TextButton.icon(
-            onPressed: () {
-              Navigator.of(context).pop();
-              context.push('/property/${inquiry.propertyId}');
-            },
-            icon: const Icon(Icons.open_in_new, size: 18),
-            label: const Text('عرض الإعلان'),
-          ),
-          if (received) Text('من: ${inquiry.senderName ?? 'مهتم'}', style: theme.textTheme.bodyMedium),
-          Text(
-            'طريقة التواصل المفضلة: ${contactPreferenceNames[inquiry.contactPreference] ?? ''}',
-            style: theme.textTheme.bodySmall,
-          ),
-          const Divider(height: 24),
-          SelectableText(inquiry.message, style: theme.textTheme.bodyLarge),
-          if (received && phone != null) ...[
-            const SizedBox(height: 16),
-            Directionality(
-              textDirection: TextDirection.ltr,
-              child: SelectableText(phone, style: theme.textTheme.titleMedium),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(inquiry.propertyTitle, style: theme.textTheme.titleMedium),
+            TextButton.icon(
+              onPressed: () {
+                Navigator.of(context).pop();
+                context.push('/property/${inquiry.propertyId}');
+              },
+              icon: const Icon(Icons.open_in_new, size: 18),
+              label: const Text('عرض الإعلان'),
             ),
-            const SizedBox(height: 8),
-            Row(children: [
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: () => _open('tel:$phone'),
-                  icon: const Icon(Icons.phone),
-                  label: const Text('اتصال'),
+            if (received)
+              Text(
+                'من: ${inquiry.senderName ?? 'مهتم'}',
+                style: theme.textTheme.bodyMedium,
+              ),
+            Text(
+              'طريقة التواصل المفضلة: ${contactPreferenceNames[inquiry.contactPreference] ?? ''}',
+              style: theme.textTheme.bodySmall,
+            ),
+            const Divider(height: 24),
+            SelectableText(inquiry.message, style: theme.textTheme.bodyLarge),
+            if (received && phone != null) ...[
+              const SizedBox(height: 16),
+              Directionality(
+                textDirection: TextDirection.ltr,
+                child: SelectableText(
+                  phone,
+                  style: theme.textTheme.titleMedium,
                 ),
               ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: () => _open('https://wa.me/${phone.replaceFirst('+', '')}'),
-                  icon: const Icon(Icons.chat),
-                  label: const Text('واتساب'),
-                ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () => _open('tel:$phone'),
+                      icon: const Icon(Icons.phone),
+                      label: const Text('اتصال'),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () =>
+                          _open('https://wa.me/${phone.replaceFirst('+', '')}'),
+                      icon: const Icon(Icons.chat),
+                      label: const Text('واتساب'),
+                    ),
+                  ),
+                ],
               ),
-            ]),
+            ],
+            if (received) ...[
+              const SizedBox(height: 16),
+              Wrap(
+                spacing: 8,
+                children: [
+                  for (final s in const ['RESPONDED', 'CLOSED', 'SPAM'])
+                    ChoiceChip(
+                      label: Text(inquiryStatusNames[s]!),
+                      selected: inquiry.status == s,
+                      onSelected: (_) => Navigator.of(context).pop(s),
+                    ),
+                ],
+              ),
+            ] else
+              Text(
+                'الحالة: ${inquiryStatusNames[inquiry.status] ?? inquiry.status}',
+                style: theme.textTheme.bodyMedium,
+              ),
           ],
-          if (received) ...[
-            const SizedBox(height: 16),
-            Wrap(spacing: 8, children: [
-              for (final s in const ['RESPONDED', 'CLOSED', 'SPAM'])
-                ChoiceChip(
-                  label: Text(inquiryStatusNames[s]!),
-                  selected: inquiry.status == s,
-                  onSelected: (_) => Navigator.of(context).pop(s),
-                ),
-            ]),
-          ] else
-            Text('الحالة: ${inquiryStatusNames[inquiry.status] ?? inquiry.status}', style: theme.textTheme.bodyMedium),
-        ]),
+        ),
       ),
     );
   }

@@ -16,74 +16,134 @@ class PropertyCardTile extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
     final p = property;
     final isFavorite = ref.watch(favoriteOverridesProvider.select((m) => m[p.id])) ?? p.isFavorite;
 
     return Card(
       clipBehavior: Clip.antiAlias,
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
       child: InkWell(
         onTap: () => context.push('/property/${p.id}'),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Stack(
-              children: [
-                AspectRatio(
-                  aspectRatio: 16 / 10,
-                  child: p.coverThumbnailUrl == null
+            AspectRatio(
+              aspectRatio: 16 / 10,
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  p.coverThumbnailUrl == null
                       ? const _ImagePlaceholder()
                       : CachedNetworkImage(
                           imageUrl: p.coverThumbnailUrl!,
                           fit: BoxFit.cover,
+                          fadeInDuration: const Duration(milliseconds: 200),
                           placeholder: (_, _) => const _ImagePlaceholder(),
                           errorWidget: (_, _, _) => const _ImagePlaceholder(),
                         ),
-                ),
-                PositionedDirectional(
-                  top: 8,
-                  start: 8,
-                  child: _Badge(text: purposeName(p.purpose)),
-                ),
-                PositionedDirectional(
-                  top: 4,
-                  end: 4,
-                  child: IconButton.filledTonal(
-                    tooltip: isFavorite ? 'إزالة من المفضلة' : 'إضافة إلى المفضلة',
-                    icon: Icon(isFavorite ? Icons.favorite : Icons.favorite_border,
-                        color: isFavorite ? Colors.red : null),
-                    onPressed: () => toggleFavorite(context, ref, p.id, isFavorite),
+                  // Darkens the bottom so the price stays readable on any photo.
+                  const Positioned.fill(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          stops: [0.45, 1],
+                          colors: [Colors.transparent, Color(0xB3000000)],
+                        ),
+                      ),
+                    ),
                   ),
-                ),
-              ],
+                  PositionedDirectional(
+                    top: 10,
+                    start: 10,
+                    child: Row(mainAxisSize: MainAxisSize.min, children: [
+                      _Badge(text: purposeName(p.purpose), color: scheme.primary, textColor: scheme.onPrimary),
+                      const SizedBox(width: 6),
+                      _Badge(
+                        text: propertyTypeNames[p.propertyType] ?? '',
+                        color: Colors.black54,
+                        textColor: Colors.white,
+                      ),
+                    ]),
+                  ),
+                  PositionedDirectional(
+                    top: 6,
+                    end: 6,
+                    child: Material(
+                      color: Colors.white.withValues(alpha: 0.9),
+                      shape: const CircleBorder(),
+                      child: IconButton(
+                        tooltip: isFavorite ? 'إزالة من المفضلة' : 'إضافة إلى المفضلة',
+                        icon: AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 180),
+                          transitionBuilder: (child, anim) => ScaleTransition(scale: anim, child: child),
+                          child: Icon(
+                            isFavorite ? Icons.favorite : Icons.favorite_border,
+                            key: ValueKey(isFavorite),
+                            color: isFavorite ? Colors.red : Colors.black87,
+                          ),
+                        ),
+                        onPressed: () => toggleFavorite(context, ref, p.id, isFavorite),
+                      ),
+                    ),
+                  ),
+                  PositionedDirectional(
+                    bottom: 10,
+                    start: 14,
+                    end: 14,
+                    child: Text(
+                      formatPrice(p),
+                      style: theme.textTheme.titleLarge?.copyWith(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        shadows: const [Shadow(blurRadius: 6, color: Colors.black45)],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
             Padding(
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(formatPrice(p),
-                      style: theme.textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.bold, color: theme.colorScheme.primary)),
-                  const SizedBox(height: 4),
-                  Text(p.title, maxLines: 2, overflow: TextOverflow.ellipsis, style: theme.textTheme.titleMedium),
+                  Text(
+                    p.title,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                  ),
                   if (p.location != null) ...[
                     const SizedBox(height: 4),
                     Row(children: [
-                      const Icon(Icons.place_outlined, size: 16),
+                      Icon(Icons.place_outlined, size: 16, color: scheme.outline),
                       const SizedBox(width: 4),
                       Expanded(
-                        child: Text(p.location!.breadcrumbAr,
-                            maxLines: 1, overflow: TextOverflow.ellipsis, style: theme.textTheme.bodyMedium),
+                        child: Text(
+                          p.location!.breadcrumbAr,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant),
+                        ),
                       ),
                     ]),
                   ],
-                  const SizedBox(height: 8),
-                  Wrap(spacing: 16, runSpacing: 4, children: [
-                    _Spec(icon: Icons.home_work_outlined, text: propertyTypeNames[p.propertyType] ?? ''),
+                  const SizedBox(height: 10),
+                  Row(children: [
                     if (p.bedrooms != null) _Spec(icon: Icons.bed_outlined, text: '${p.bedrooms}'),
                     if (p.bathrooms != null) _Spec(icon: Icons.bathtub_outlined, text: '${p.bathrooms}'),
                     if (p.areaSqm != null) _Spec(icon: Icons.square_foot, text: formatArea(p.areaSqm!)),
+                    const Spacer(),
+                    if (p.office?.verified == true)
+                      Row(mainAxisSize: MainAxisSize.min, children: [
+                        Icon(Icons.verified, size: 16, color: scheme.primary),
+                        const SizedBox(width: 4),
+                        Text('مكتب موثّق', style: theme.textTheme.bodySmall?.copyWith(color: scheme.primary)),
+                      ]),
                   ]),
                 ],
               ),
@@ -118,19 +178,17 @@ class _ImagePlaceholder extends StatelessWidget {
 }
 
 class _Badge extends StatelessWidget {
-  const _Badge({required this.text});
+  const _Badge({required this.text, required this.color, required this.textColor});
 
   final String text;
+  final Color color;
+  final Color textColor;
 
   @override
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.primary,
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: Text(text,
-            style: TextStyle(color: Theme.of(context).colorScheme.onPrimary, fontSize: 12)),
+        decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(20)),
+        child: Text(text, style: TextStyle(color: textColor, fontSize: 12, fontWeight: FontWeight.w500)),
       );
 }
 
@@ -141,9 +199,12 @@ class _Spec extends StatelessWidget {
   final String text;
 
   @override
-  Widget build(BuildContext context) => Row(mainAxisSize: MainAxisSize.min, children: [
-        Icon(icon, size: 18, color: Theme.of(context).colorScheme.outline),
-        const SizedBox(width: 4),
-        Text(text),
-      ]);
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsetsDirectional.only(end: 16),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Icon(icon, size: 18, color: Theme.of(context).colorScheme.outline),
+          const SizedBox(width: 4),
+          Text(text),
+        ]),
+      );
 }

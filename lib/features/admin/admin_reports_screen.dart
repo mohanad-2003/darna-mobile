@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/api/api_exception.dart';
+import '../../core/widgets/empty_state.dart';
 import '../../core/time_ago.dart';
 import 'admin_repository.dart';
 
@@ -28,27 +29,29 @@ class _AdminReportsScreenState extends State<AdminReportsScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('البلاغات')),
-      body: Column(children: [
-        SizedBox(
-          height: 52,
-          child: ListView(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            children: [
-              for (final e in _tabs.entries)
-                Padding(
-                  padding: const EdgeInsetsDirectional.only(end: 8),
-                  child: ChoiceChip(
-                    label: Text(e.value),
-                    selected: _status == e.key,
-                    onSelected: (_) => setState(() => _status = e.key),
+      body: Column(
+        children: [
+          SizedBox(
+            height: 52,
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              children: [
+                for (final e in _tabs.entries)
+                  Padding(
+                    padding: const EdgeInsetsDirectional.only(end: 8),
+                    child: ChoiceChip(
+                      label: Text(e.value),
+                      selected: _status == e.key,
+                      onSelected: (_) => setState(() => _status = e.key),
+                    ),
                   ),
-                ),
-            ],
+              ],
+            ),
           ),
-        ),
-        Expanded(child: _ReportList(status: _status)),
-      ]),
+          Expanded(child: _ReportList(status: _status)),
+        ],
+      ),
     );
   }
 }
@@ -64,14 +67,30 @@ class _ReportList extends ConsumerWidget {
     return reports.when(
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (e, _) => Center(
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Text(e is ApiException ? e.message : 'تعذر التحميل'),
-          const SizedBox(height: 12),
-          FilledButton(onPressed: () => ref.invalidate(reportsProvider(status)), child: const Text('إعادة المحاولة')),
-        ]),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(e is ApiException ? e.message : 'تعذر التحميل'),
+            const SizedBox(height: 12),
+            FilledButton(
+              onPressed: () => ref.invalidate(reportsProvider(status)),
+              child: const Text('إعادة المحاولة'),
+            ),
+          ],
+        ),
       ),
       data: (items) {
-        if (items.isEmpty) return const Center(child: Text('لا توجد بلاغات هنا'));
+        if (items.isEmpty) {
+          return EmptyStateView(
+            illustration: EmptyStateIllustration.review,
+            title: 'لا توجد بلاغات في هذه القائمة',
+            description: 'ستظهر هنا البلاغات التي تطابق الحالة المحددة.',
+            onRefresh: () async {
+              ref.invalidate(reportsProvider(status));
+              await ref.read(reportsProvider(status).future);
+            },
+          );
+        }
         return RefreshIndicator(
           onRefresh: () async => ref.refresh(reportsProvider(status).future),
           child: ListView.separated(
@@ -82,8 +101,15 @@ class _ReportList extends ConsumerWidget {
               return ListTile(
                 leading: const Icon(Icons.flag_outlined),
                 title: Text(reportReasonNames[r.reason] ?? r.reason),
-                subtitle: Text(r.propertyTitle, maxLines: 1, overflow: TextOverflow.ellipsis),
-                trailing: Text(timeAgoAr(r.createdAt), style: Theme.of(context).textTheme.bodySmall),
+                subtitle: Text(
+                  r.propertyTitle,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                trailing: Text(
+                  timeAgoAr(r.createdAt),
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
                 onTap: () => _open(context, ref, r),
               );
             },
@@ -116,10 +142,14 @@ class _ReportList extends ConsumerWidget {
       if (resolution == null) return; // backed out
     }
     try {
-      await ref.read(adminRepositoryProvider).updateReport(
+      await ref
+          .read(adminRepositoryProvider)
+          .updateReport(
             r.id,
             action,
-            resolution: (resolution == null || resolution.isEmpty) ? null : resolution,
+            resolution: (resolution == null || resolution.isEmpty)
+                ? null
+                : resolution,
           );
       // The report moves to another tab, so every tab's list is stale.
       for (final s in _tabs.keys) {
@@ -143,51 +173,66 @@ class _ReportSheet extends StatelessWidget {
     return SafeArea(
       child: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-          Text(reportReasonNames[report.reason] ?? report.reason, style: theme.textTheme.titleLarge),
-          const SizedBox(height: 4),
-          Text('الإعلان: ${report.propertyTitle}'),
-          Text('حالة الإعلان: ${report.propertyStatus}', style: theme.textTheme.bodySmall),
-          Text('المُبلِّغ: ${report.reporterName ?? 'مستخدم'}', style: theme.textTheme.bodySmall),
-          if (report.description != null) ...[
-            const Divider(height: 24),
-            Text(report.description!, style: theme.textTheme.bodyLarge),
-          ],
-          if (closed && report.resolution != null) ...[
-            const Divider(height: 24),
-            Text('القرار: ${report.resolution}'),
-          ],
-          const SizedBox(height: 16),
-          OutlinedButton.icon(
-            onPressed: () => Navigator.of(context).pop('view'),
-            icon: const Icon(Icons.open_in_new),
-            label: const Text('عرض الإعلان ومراجعته'),
-          ),
-          if (!closed) ...[
-            const SizedBox(height: 8),
-            if (report.status == 'OPEN')
-              OutlinedButton(
-                onPressed: () => Navigator.of(context).pop('UNDER_REVIEW'),
-                child: const Text('استلام البلاغ (قيد المراجعة)'),
-              ),
-            const SizedBox(height: 8),
-            Row(children: [
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: () => Navigator.of(context).pop('DISMISSED'),
-                  child: const Text('رفض البلاغ'),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              reportReasonNames[report.reason] ?? report.reason,
+              style: theme.textTheme.titleLarge,
+            ),
+            const SizedBox(height: 4),
+            Text('الإعلان: ${report.propertyTitle}'),
+            Text(
+              'حالة الإعلان: ${report.propertyStatus}',
+              style: theme.textTheme.bodySmall,
+            ),
+            Text(
+              'المُبلِّغ: ${report.reporterName ?? 'مستخدم'}',
+              style: theme.textTheme.bodySmall,
+            ),
+            if (report.description != null) ...[
+              const Divider(height: 24),
+              Text(report.description!, style: theme.textTheme.bodyLarge),
+            ],
+            if (closed && report.resolution != null) ...[
+              const Divider(height: 24),
+              Text('القرار: ${report.resolution}'),
+            ],
+            const SizedBox(height: 16),
+            OutlinedButton.icon(
+              onPressed: () => Navigator.of(context).pop('view'),
+              icon: const Icon(Icons.open_in_new),
+              label: const Text('عرض الإعلان ومراجعته'),
+            ),
+            if (!closed) ...[
+              const SizedBox(height: 8),
+              if (report.status == 'OPEN')
+                OutlinedButton(
+                  onPressed: () => Navigator.of(context).pop('UNDER_REVIEW'),
+                  child: const Text('استلام البلاغ (قيد المراجعة)'),
                 ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.of(context).pop('DISMISSED'),
+                      child: const Text('رفض البلاغ'),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: FilledButton(
+                      onPressed: () => Navigator.of(context).pop('RESOLVED'),
+                      child: const Text('تم الحل'),
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: FilledButton(
-                  onPressed: () => Navigator.of(context).pop('RESOLVED'),
-                  child: const Text('تم الحل'),
-                ),
-              ),
-            ]),
+            ],
           ],
-        ]),
+        ),
       ),
     );
   }
@@ -213,20 +258,26 @@ class _ResolutionDialogState extends State<_ResolutionDialog> {
 
   @override
   Widget build(BuildContext context) => AlertDialog(
-        title: Text(widget.dismiss ? 'سبب رفض البلاغ' : 'ماذا تم؟'),
-        content: TextField(
-          controller: _text,
-          autofocus: true,
-          maxLines: 3,
-          maxLength: 2000,
-          decoration: const InputDecoration(
-            helperText: 'اختياري. يصل هذا الكلام لمن أبلغ.',
-            border: OutlineInputBorder(),
-          ),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('إلغاء')),
-          FilledButton(onPressed: () => Navigator.of(context).pop(_text.text.trim()), child: const Text('تأكيد')),
-        ],
-      );
+    title: Text(widget.dismiss ? 'سبب رفض البلاغ' : 'ماذا تم؟'),
+    content: TextField(
+      controller: _text,
+      autofocus: true,
+      maxLines: 3,
+      maxLength: 2000,
+      decoration: const InputDecoration(
+        helperText: 'اختياري. يصل هذا الكلام لمن أبلغ.',
+        border: OutlineInputBorder(),
+      ),
+    ),
+    actions: [
+      TextButton(
+        onPressed: () => Navigator.of(context).pop(),
+        child: const Text('إلغاء'),
+      ),
+      FilledButton(
+        onPressed: () => Navigator.of(context).pop(_text.text.trim()),
+        child: const Text('تأكيد'),
+      ),
+    ],
+  );
 }

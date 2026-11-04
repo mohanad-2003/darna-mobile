@@ -6,6 +6,8 @@ import '../auth/ensure_name.dart';
 import '../notifications/notifications_repository.dart';
 
 import 'filters_sheet.dart';
+import '../../core/widgets/skeleton.dart';
+import '../../core/widgets/empty_state.dart';
 import 'listings_controller.dart';
 import 'models.dart';
 import 'property_card.dart';
@@ -49,7 +51,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         actions: [
           TextButton.icon(
             onPressed: () async {
-              if (await ensureSignedInWithName(context, ref) && context.mounted) {
+              if (await ensureSignedInWithName(context, ref) &&
+                  context.mounted) {
                 context.push('/listing/new');
               }
             },
@@ -78,12 +81,25 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               children: [
-                _chip('الكل', filters.purpose == null,
-                    () => controller.setFilters(filters.copyWith(clearPurpose: true))),
-                _chip('للبيع', filters.purpose == 'SALE',
-                    () => controller.setFilters(filters.copyWith(purpose: 'SALE'))),
-                _chip('للإيجار', filters.purpose == 'RENT',
-                    () => controller.setFilters(filters.copyWith(purpose: 'RENT'))),
+                _chip(
+                  'الكل',
+                  filters.purpose == null,
+                  () => controller.setFilters(
+                    filters.copyWith(clearPurpose: true),
+                  ),
+                ),
+                _chip(
+                  'للبيع',
+                  filters.purpose == 'SALE',
+                  () =>
+                      controller.setFilters(filters.copyWith(purpose: 'SALE')),
+                ),
+                _chip(
+                  'للإيجار',
+                  filters.purpose == 'RENT',
+                  () =>
+                      controller.setFilters(filters.copyWith(purpose: 'RENT')),
+                ),
                 Padding(
                   padding: const EdgeInsetsDirectional.only(start: 8),
                   child: ActionChip(
@@ -96,7 +112,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   IconButton(
                     tooltip: 'إلغاء الموقع',
                     icon: const Icon(Icons.close),
-                    onPressed: () => controller.setFilters(filters.copyWith(clearLocation: true)),
+                    onPressed: () => controller.setFilters(
+                      filters.copyWith(clearLocation: true),
+                    ),
                   ),
                 Padding(
                   padding: const EdgeInsetsDirectional.only(start: 8),
@@ -123,23 +141,58 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   Widget _chip(String label, bool selected, VoidCallback onTap) => Padding(
-        padding: const EdgeInsetsDirectional.only(end: 8),
-        child: ChoiceChip(label: Text(label), selected: selected, onSelected: (_) => onTap()),
-      );
+    padding: const EdgeInsetsDirectional.only(end: 8),
+    child: ChoiceChip(
+      label: Text(label),
+      selected: selected,
+      onSelected: (_) => onTap(),
+    ),
+  );
 
   Widget _body(ListingsState state, ListingsController controller) {
     if (state.items.isEmpty && state.loading) {
-      return const Center(child: CircularProgressIndicator());
+      return ListView(
+        physics: const NeverScrollableScrollPhysics(),
+        children: const [
+          PropertyCardSkeleton(),
+          PropertyCardSkeleton(),
+          PropertyCardSkeleton(),
+        ],
+      );
     }
     if (state.items.isEmpty && state.error != null) {
       return _Message(
         icon: Icons.wifi_off,
         text: state.error!,
-        action: FilledButton(onPressed: controller.loadFirst, child: const Text('إعادة المحاولة')),
+        action: FilledButton(
+          onPressed: controller.loadFirst,
+          child: const Text('إعادة المحاولة'),
+        ),
       );
     }
     if (state.items.isEmpty) {
-      return const _Message(icon: Icons.search_off, text: 'لا توجد إعلانات مطابقة');
+      final hasFilters =
+          state.filters.activeCount > 0 ||
+          state.filters.purpose != null ||
+          state.filters.locationId != null;
+      return EmptyStateView(
+        illustration: EmptyStateIllustration.search,
+        title: hasFilters
+            ? 'لم نجد عقارات بهذه المواصفات'
+            : 'لا توجد عقارات متاحة حاليًا',
+        description: hasFilters
+            ? 'جرّب توسيع نطاق البحث أو إزالة بعض الفلاتر لتظهر لك خيارات أكثر.'
+            : 'تظهر الإعلانات هنا بعد نشرها. اسحب للأسفل للتحقق من العقارات الجديدة.',
+        actionLabel: hasFilters ? 'عرض كل العقارات' : 'تحديث العقارات',
+        onAction: () {
+          if (hasFilters) {
+            controller.setFilters(const SearchFilters());
+          } else {
+            controller.loadFirst();
+          }
+        },
+        onRefresh: controller.loadFirst,
+      );
     }
     return RefreshIndicator(
       onRefresh: () async {
@@ -151,12 +204,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         physics: const AlwaysScrollableScrollPhysics(),
         itemCount: state.items.length + 1,
         itemBuilder: (context, i) {
-          if (i < state.items.length) return PropertyCardTile(property: state.items[i]);
+          if (i < state.items.length) {
+            return PropertyCardTile(property: state.items[i]);
+          }
           if (state.loading) {
-            return const Padding(padding: EdgeInsets.all(24), child: Center(child: CircularProgressIndicator()));
+            return const Padding(
+              padding: EdgeInsets.all(24),
+              child: Center(child: CircularProgressIndicator()),
+            );
           }
           if (state.error != null) {
-            return TextButton(onPressed: controller.loadMore, child: const Text('تعذر التحميل، اضغط للمحاولة'));
+            return TextButton(
+              onPressed: controller.loadMore,
+              child: const Text('تعذر التحميل، اضغط للمحاولة'),
+            );
           }
           return const SizedBox(height: 24);
         },
@@ -174,13 +235,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       builder: (_) => const _LocationSheet(),
     );
     if (picked != null) {
-      controller.setFilters(current.copyWith(locationId: picked.id, locationName: picked.nameAr));
+      controller.setFilters(
+        current.copyWith(locationId: picked.id, locationName: picked.nameAr),
+      );
     }
   }
 }
 
 final _governoratesProvider = FutureProvider.autoDispose<List<GeoLocation>>(
-    (ref) => ref.watch(propertyRepositoryProvider).locations());
+  (ref) => ref.watch(propertyRepositoryProvider).locations(),
+);
 
 class _LocationSheet extends ConsumerWidget {
   const _LocationSheet();
@@ -190,7 +254,10 @@ class _LocationSheet extends ConsumerWidget {
     final locations = ref.watch(_governoratesProvider);
     return SafeArea(
       child: locations.when(
-        loading: () => const SizedBox(height: 200, child: Center(child: CircularProgressIndicator())),
+        loading: () => const SizedBox(
+          height: 200,
+          child: Center(child: CircularProgressIndicator()),
+        ),
         error: (e, _) => SizedBox(
           height: 200,
           child: Center(
@@ -204,7 +271,10 @@ class _LocationSheet extends ConsumerWidget {
           shrinkWrap: true,
           children: [
             for (final l in list)
-              ListTile(title: Text(l.nameAr), onTap: () => Navigator.of(context).pop(l)),
+              ListTile(
+                title: Text(l.nameAr),
+                onTap: () => Navigator.of(context).pop(l),
+              ),
           ],
         ),
       ),
@@ -221,14 +291,17 @@ class _Message extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
-            Icon(icon, size: 56, color: Theme.of(context).colorScheme.outline),
-            const SizedBox(height: 12),
-            Text(text, textAlign: TextAlign.center),
-            if (action != null) ...[const SizedBox(height: 16), action!],
-          ]),
-        ),
-      );
+    child: Padding(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 56, color: Theme.of(context).colorScheme.outline),
+          const SizedBox(height: 12),
+          Text(text, textAlign: TextAlign.center),
+          if (action != null) ...[const SizedBox(height: 16), action!],
+        ],
+      ),
+    ),
+  );
 }

@@ -13,6 +13,7 @@ import '../features/listings/listing_form_screen.dart';
 import '../features/listings/manage_listing_screen.dart';
 import '../features/listings/my_listings_screen.dart';
 import '../features/notifications/notifications_screen.dart';
+import '../features/onboarding/onboarding_gate.dart';
 import '../features/properties/favorites_screen.dart';
 import '../features/properties/home_screen.dart';
 import '../features/properties/property_detail_screen.dart';
@@ -23,35 +24,59 @@ import '../features/shell/main_shell.dart';
 final appRouter = GoRouter(
   routes: [
     StatefulShellRoute.indexedStack(
-      builder: (context, state, shell) => MainShell(navigationShell: shell),
+      builder: (context, state, shell) =>
+          OnboardingGate(child: MainShell(navigationShell: shell)),
       branches: [
-        StatefulShellBranch(routes: [GoRoute(path: '/', builder: (_, _) => const HomeScreen())]),
-        StatefulShellBranch(routes: [GoRoute(path: '/favorites', builder: (_, _) => const FavoritesScreen())]),
-        StatefulShellBranch(routes: [GoRoute(path: '/account', builder: (_, _) => const AccountScreen())]),
+        StatefulShellBranch(
+          routes: [GoRoute(path: '/', builder: (_, _) => const HomeScreen())],
+        ),
+        StatefulShellBranch(
+          routes: [
+            GoRoute(
+              path: '/favorites',
+              builder: (_, _) => const FavoritesScreen(),
+            ),
+          ],
+        ),
+        StatefulShellBranch(
+          routes: [
+            GoRoute(path: '/account', builder: (_, _) => const AccountScreen()),
+          ],
+        ),
       ],
     ),
     GoRoute(
       path: '/property/:id',
-      builder: (_, state) => PropertyDetailScreen(propertyId: state.pathParameters['id']!),
+      builder: (_, state) =>
+          PropertyDetailScreen(propertyId: state.pathParameters['id']!),
     ),
     GoRoute(path: '/admin/queue', builder: (_, _) => const AdminQueueScreen()),
-    GoRoute(path: '/admin/reports', builder: (_, _) => const AdminReportsScreen()),
+    GoRoute(
+      path: '/admin/reports',
+      builder: (_, _) => const AdminReportsScreen(),
+    ),
     GoRoute(
       path: '/admin/review/:id',
-      builder: (_, state) => AdminReviewScreen(propertyId: state.pathParameters['id']!),
+      builder: (_, state) =>
+          AdminReviewScreen(propertyId: state.pathParameters['id']!),
     ),
-    GoRoute(path: '/notifications', builder: (_, _) => const NotificationsScreen()),
+    GoRoute(
+      path: '/notifications',
+      builder: (_, _) => const NotificationsScreen(),
+    ),
     GoRoute(path: '/inquiries', builder: (_, _) => const InquiriesScreen()),
     GoRoute(path: '/my-listings', builder: (_, _) => const MyListingsScreen()),
     // 'new' must come before ':id' or it would be read as an id.
     GoRoute(path: '/listing/new', builder: (_, _) => const ListingFormScreen()),
     GoRoute(
       path: '/listing/:id',
-      builder: (_, state) => ManageListingScreen(propertyId: state.pathParameters['id']!),
+      builder: (_, state) =>
+          ManageListingScreen(propertyId: state.pathParameters['id']!),
       routes: [
         GoRoute(
           path: 'edit',
-          builder: (_, state) => ListingFormScreen(propertyId: state.pathParameters['id']),
+          builder: (_, state) =>
+              ListingFormScreen(propertyId: state.pathParameters['id']),
         ),
       ],
     ),
@@ -66,5 +91,6 @@ final appRouter = GoRouter(
     ),
     GoRoute(path: '/login/name', builder: (_, _) => const NameScreen()),
   ],
-  errorBuilder: (_, _) => const Scaffold(body: Center(child: Text('الصفحة غير موجودة'))),
+  errorBuilder: (_, _) =>
+      const Scaffold(body: Center(child: Text('الصفحة غير موجودة'))),
 );

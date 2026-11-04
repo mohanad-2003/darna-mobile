@@ -6,7 +6,9 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/api/api_exception.dart';
 import '../../core/auth/auth_controller.dart';
+import '../../core/widgets/skeleton.dart';
 import 'format.dart';
+import 'gallery_screen.dart';
 import 'listings_controller.dart';
 import 'models.dart';
 import 'property_card.dart';
@@ -37,7 +39,7 @@ class PropertyDetailScreen extends ConsumerWidget {
         ],
       ),
       body: detail.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
+        loading: () => const PropertyDetailSkeleton(),
         error: (e, _) => Center(
           child: Padding(
             padding: const EdgeInsets.all(24),
@@ -178,29 +180,59 @@ class _GalleryState extends State<_Gallery> {
         ),
       );
     }
+    final scheme = Theme.of(context).colorScheme;
     return AspectRatio(
       aspectRatio: 16 / 10,
       child: Stack(children: [
         PageView.builder(
           itemCount: widget.media.length,
           onPageChanged: (i) => setState(() => _index = i),
-          itemBuilder: (_, i) => CachedNetworkImage(
-            imageUrl: widget.media[i].url,
-            fit: BoxFit.cover,
-            placeholder: (_, _) => const Center(child: CircularProgressIndicator()),
-            errorWidget: (_, _, _) => const Center(child: Icon(Icons.broken_image_outlined, size: 48)),
-          ),
-        ),
-        if (widget.media.length > 1)
-          PositionedDirectional(
-            bottom: 8,
-            end: 8,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(12)),
-              child: Text('${_index + 1} / ${widget.media.length}', style: const TextStyle(color: Colors.white)),
+          itemBuilder: (_, i) => GestureDetector(
+            onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(
+              builder: (_) => GalleryScreen(media: widget.media, initialIndex: i),
+            )),
+            child: CachedNetworkImage(
+              imageUrl: widget.media[i].url,
+              fit: BoxFit.cover,
+              width: double.infinity,
+              placeholder: (_, _) => const Skeleton(height: double.infinity, radius: 0),
+              errorWidget: (_, _, _) => const Center(child: Icon(Icons.broken_image_outlined, size: 48)),
             ),
           ),
+        ),
+        // Dots: which photo this is, and a hint that there are more to swipe to.
+        if (widget.media.length > 1)
+          Positioned(
+            bottom: 10,
+            left: 0,
+            right: 0,
+            child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+              for (var i = 0; i < widget.media.length; i++)
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  margin: const EdgeInsets.symmetric(horizontal: 3),
+                  width: i == _index ? 18 : 7,
+                  height: 7,
+                  decoration: BoxDecoration(
+                    color: i == _index ? scheme.primary : Colors.white70,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+            ]),
+          ),
+        PositionedDirectional(
+          top: 10,
+          end: 10,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(12)),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              const Icon(Icons.photo_library_outlined, size: 14, color: Colors.white),
+              const SizedBox(width: 4),
+              Text('${_index + 1} / ${widget.media.length}', style: const TextStyle(color: Colors.white, fontSize: 12)),
+            ]),
+          ),
+        ),
       ]),
     );
   }

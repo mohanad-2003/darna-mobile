@@ -3,6 +3,9 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 
 import 'router.dart';
 
+/// Darna's teal, as in the logo and icon.
+const _brandTeal = Color(0xFF0F766E);
+
 class DarnaApp extends StatelessWidget {
   const DarnaApp({super.key});
 
@@ -23,7 +26,7 @@ class DarnaApp extends StatelessWidget {
       theme: ThemeData(
         useMaterial3: true,
         fontFamily: 'Tajawal',
-        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF0F766E)),
+        colorScheme: ColorScheme.fromSeed(seedColor: _brandTeal, primary: _brandTeal, onPrimary: Colors.white),
         cardTheme: const CardThemeData(elevation: 1),
       ),
     );

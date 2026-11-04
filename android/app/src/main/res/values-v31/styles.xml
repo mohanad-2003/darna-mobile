@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Android 12+ ignores windowBackground for launch; it draws the system splash screen. -->
+    <style name="LaunchTheme" parent="@android:style/Theme.Light.NoTitleBar">
+        <item name="android:windowSplashScreenBackground">@color/darna_teal</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@mipmap/ic_darna_foreground</item>
+    </style>
+    <style name="NormalTheme" parent="@android:style/Theme.Light.NoTitleBar">
+        <item name="android:windowBackground">?android:colorBackground</item>
+    </style>
+</resources>
