@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 import 'onboarding_screen.dart';
 
@@ -50,7 +51,11 @@ class _OnboardingGateState extends State<OnboardingGate> {
           return Scaffold(
             backgroundColor: Theme.of(context).colorScheme.primary,
             body: Center(
-              child: Image.asset('assets/branding/darna_mark.webp', width: 128, excludeFromSemantics: true),
+              child: SvgPicture.asset(
+                'assets/branding/darna_symbol_dark.svg',
+                width: 128,
+                excludeFromSemantics: true,
+              ),
             ),
           );
         }

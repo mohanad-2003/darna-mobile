@@ -79,7 +79,7 @@ class PropertyDetailSkeleton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListView(physics: const NeverScrollableScrollPhysics(), children: const [
-      AspectRatio(aspectRatio: 16 / 10, child: Skeleton(height: double.infinity, radius: 0)),
+      SizedBox(height: 300, child: Skeleton(height: double.infinity, radius: 0)),
       Padding(
         padding: EdgeInsets.all(16),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [

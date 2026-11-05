@@ -22,20 +22,20 @@ $roundingPen.LineJoin = [Windows.Media.PenLineJoin]::Round
 $roundedEdges = $wordGeometry.GetWidenedPathGeometry($roundingPen)
 $wordGeometry = [Windows.Media.Geometry]::Combine($wordGeometry, $roundedEdges, [Windows.Media.GeometryCombineMode]::Union, $null).GetOutlinedPathGeometry()
 $bounds = $wordGeometry.Bounds
-$scale = 180.0 / $bounds.Height
+$scale = 210.0 / $bounds.Height
 $wordWidth = $bounds.Width * $scale
-$left = (1536 - ($wordWidth + 96 + 384)) / 2
-$symbolX = $left + $wordWidth + 96
+$left = (1536 - ($wordWidth + 72 + 320)) / 2
+$symbolX = $left + $wordWidth + 72
 $translateX = $left - $bounds.X * $scale
-$translateY = 294 - $bounds.Y * $scale
+$translateY = 279 - $bounds.Y * $scale
 $wordMatrix = New-Object Windows.Media.Matrix($scale, 0, 0, $scale, $translateX, $translateY)
 $wordGeometry.Transform = New-Object Windows.Media.MatrixTransform($wordMatrix)
 
-# A closed roof/pin contour and an independent closed arch; evenodd removes
-# the doorway without painting it a background colour. Doorway height = 120.
-$symbolPath = 'M188 4 Q192 0 196 4 L272 70 V36 Q272 30 278 30 H310 Q316 30 316 36 V108 L380 164 Q388 172 378 172 H328 C341 238 316 280 280 316 L198 396 Q192 402 186 396 L104 316 C68 280 43 238 56 172 H6 Q-4 172 4 164 Z M144 280 V208 C144 181.49 165.49 160 192 160 C218.51 160 240 181.49 240 208 V280 Z'
+# Two closed contours: a geometric roof and an open architectural arch.
+# The space inside the entrance stays transparent on every background.
+$symbolPath = 'M20 132 L148 24 Q160 14 172 24 L300 132 L276 160 L160 62 L44 160 Z M60 284 V210 C60 152 104 112 160 112 C216 112 260 152 260 210 V284 H220 V210 C220 174 196 152 160 152 C124 152 100 174 100 210 V284 Z'
 $symbolGeometry = [Windows.Media.Geometry]::Parse($symbolPath).Clone()
-$symbolGeometry.Transform = New-Object Windows.Media.TranslateTransform($symbolX, 184)
+$symbolGeometry.Transform = New-Object Windows.Media.TranslateTransform($symbolX, 232)
 $symbolGeometry.FillRule = [Windows.Media.FillRule]::EvenOdd
 
 # Bake transforms into points, retaining the original cubic and quadratic curves.
@@ -59,6 +59,16 @@ $wordElements
   <path fill="$($variant.Color)" fill-rule="evenodd" d="$symbolData"/>
 </svg>
 "@
+    [IO.File]::WriteAllText((Join-Path $destination $variant.Name), $svg, $utf8)
+    $tightName = if ($variant.Name -eq 'darna_logo_master.svg') { 'darna_logo_tight.svg' } else { 'darna_logo_tight_dark.svg' }
+    $tightX = [math]::Floor($left - 16)
+    $tightWidth = [math]::Ceiling($wordWidth + 72 + 320 + 32)
+    $tight = $svg.Replace('width="1536" height="768" viewBox="0 0 1536 768"', "width=`"$tightWidth`" height=`"304`" viewBox=`"$tightX 232 $tightWidth 304`"")
+    [IO.File]::WriteAllText((Join-Path $destination $tightName), $tight, $utf8)
+}
+
+foreach ($variant in @(@{ Name = 'darna_symbol.svg'; Color = '#0F766E' }, @{ Name = 'darna_symbol_dark.svg'; Color = '#FAF6F1' })) {
+    $svg = '<svg xmlns="http://www.w3.org/2000/svg" width="320" height="320" viewBox="0 0 320 320"><path fill="' + $variant.Color + '" d="' + $symbolPath + '"/></svg>'
     [IO.File]::WriteAllText((Join-Path $destination $variant.Name), $svg, $utf8)
 }
 
@@ -86,4 +96,4 @@ $encoder = New-Object Windows.Media.Imaging.PngBitmapEncoder
 $encoder.Frames.Add([Windows.Media.Imaging.BitmapFrame]::Create($bitmap))
 $stream = [IO.File]::Create((Join-Path $design 'darna_logo_vector_proof.png'))
 try { $encoder.Save($stream) } finally { $stream.Dispose() }
-Write-Output "Exported master and dark SVGs; wordmark height 180, symbol height 400, doorway height 120."
+Write-Output 'Exported outlined wordmark, light/dark lockups, symbol variants and proof.'

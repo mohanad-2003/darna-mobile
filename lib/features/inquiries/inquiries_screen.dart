@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../core/widgets/illustration.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -68,19 +70,7 @@ class _InquiryList extends ConsumerWidget {
 
     return inquiries.when(
       loading: () => const Center(child: CircularProgressIndicator()),
-      error: (e, _) => Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(e is ApiException ? e.message : 'تعذر التحميل'),
-            const SizedBox(height: 12),
-            FilledButton(
-              onPressed: () => ref.invalidate(provider),
-              child: const Text('إعادة المحاولة'),
-            ),
-          ],
-        ),
-      ),
+      error: (e, _) => ErrorStateView.from(e, onRetry: () => ref.invalidate(provider)),
       data: (items) {
         if (items.isEmpty) {
           return EmptyStateView(

@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../core/widgets/illustration.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../core/api/api_exception.dart';
 import '../../core/widgets/empty_state.dart';
 import '../../core/time_ago.dart';
 import '../auth/login_prompt.dart';
@@ -86,19 +87,7 @@ class NotificationsScreen extends ConsumerWidget {
       ),
       body: page.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(e is ApiException ? e.message : 'تعذر التحميل'),
-              const SizedBox(height: 12),
-              FilledButton(
-                onPressed: () => _refresh(ref),
-                child: const Text('إعادة المحاولة'),
-              ),
-            ],
-          ),
-        ),
+        error: (e, _) => ErrorStateView.from(e, onRetry: () => _refresh(ref)),
         data: (p) {
           if (p.items.isEmpty) {
             return EmptyStateView(

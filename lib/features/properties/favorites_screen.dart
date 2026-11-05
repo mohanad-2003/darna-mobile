@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../core/widgets/illustration.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../core/api/api_exception.dart';
 import '../../core/widgets/empty_state.dart';
 import '../../core/auth/auth_controller.dart';
 import '../auth/login_prompt.dart';
@@ -41,19 +42,7 @@ class FavoritesScreen extends ConsumerWidget {
       appBar: AppBar(title: const Text('المفضلة')),
       body: favorites.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(e is ApiException ? e.message : 'تعذر التحميل'),
-              const SizedBox(height: 12),
-              FilledButton(
-                onPressed: () => ref.invalidate(_favoritesProvider),
-                child: const Text('إعادة المحاولة'),
-              ),
-            ],
-          ),
-        ),
+        error: (e, _) => ErrorStateView.from(e, onRetry: () => ref.invalidate(_favoritesProvider)),
         data: (page) {
           final items = page.items
               .where((p) => overrides[p.id] != false)

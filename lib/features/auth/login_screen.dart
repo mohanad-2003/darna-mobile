@@ -5,6 +5,8 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/api/api_exception.dart';
 import '../../core/auth/auth_controller.dart';
+import '../../core/widgets/darna_logo.dart';
+import '../../core/widgets/illustration.dart';
 
 class OtpArgs {
   OtpArgs({required this.phone, required this.challenge});
@@ -73,11 +75,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     return Scaffold(
       appBar: AppBar(),
       body: SafeArea(
-        child: Padding(
+        // Scrolls so the keyboard never hides the button on small screens.
+        child: SingleChildScrollView(
           padding: const EdgeInsets.all(24),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              const Center(child: DarnaLogo(height: 52)),
+              const SizedBox(height: 20),
+              const Center(child: ClayIllustration(StateArt.welcome, size: 180)),
+              const SizedBox(height: 24),
               Text('تسجيل الدخول', style: theme.textTheme.headlineMedium),
               const SizedBox(height: 8),
               Text('أدخل رقم هاتفك وسنرسل لك رمز تحقق. لا حاجة لكلمة مرور.',

@@ -1,12 +1,15 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show PlatformException;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../core/api/api_exception.dart';
+import '../../core/widgets/illustration.dart';
 import 'listing_models.dart';
 import 'listing_repository.dart';
+import 'submitted_dialog.dart';
 
 const _maxPhotos = 20;
 const _maxBytes = 10 * 1024 * 1024;
@@ -32,6 +35,9 @@ class _ManageListingScreenState extends ConsumerState<ManageListingScreen> {
   final _picker = ImagePicker();
   final List<_UploadItem> _uploads = [];
   bool _working = false;
+  // The system picker allows one open window at a time; a second request while it is open
+  // (a double tap) fails with "already_active".
+  bool _picking = false;
 
   String get _id => widget.propertyId;
   bool get _uploading => _uploads.any((u) => u.error == null);
@@ -44,8 +50,19 @@ class _ManageListingScreenState extends ConsumerState<ManageListingScreen> {
   void _snack(String text) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
 
   Future<void> _addPhotos(OwnerListing listing) async {
-    final picked = await _picker.pickMultiImage(imageQuality: 85, maxWidth: 2400, maxHeight: 2400);
-    if (picked.isEmpty) return;
+    if (_picking) return;
+    _picking = true;
+    final List<XFile> picked;
+    try {
+      picked = await _picker.pickMultiImage(imageQuality: 85, maxWidth: 2400, maxHeight: 2400);
+    } on PlatformException catch (e) {
+      // "already_active": another picker window is still open, so there is nothing to report.
+      if (e.code != 'already_active' && mounted) _snack('تعذر فتح معرض الصور، حاول مرة أخرى');
+      return;
+    } finally {
+      _picking = false;
+    }
+    if (picked.isEmpty || !mounted) return;
 
     final room = _maxPhotos - listing.media.length - _uploads.length;
     if (room <= 0) {
@@ -107,7 +124,7 @@ class _ManageListingScreenState extends ConsumerState<ManageListingScreen> {
     }
   }
 
-  Future<bool> _confirm(String title, String body) async =>
+  Future<bool> _confirm(String title, String body, {String confirmLabel = 'تأكيد', bool destructive = false}) async =>
       await showDialog<bool>(
         context: context,
         builder: (_) => AlertDialog(
@@ -115,20 +132,49 @@ class _ManageListingScreenState extends ConsumerState<ManageListingScreen> {
           content: Text(body),
           actions: [
             TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('إلغاء')),
-            FilledButton(onPressed: () => Navigator.of(context).pop(true), child: const Text('تأكيد')),
+            FilledButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              style: destructive
+                  ? FilledButton.styleFrom(
+                      backgroundColor: Theme.of(context).colorScheme.error,
+                      foregroundColor: Theme.of(context).colorScheme.onError,
+                    )
+                  : null,
+              child: Text(confirmLabel),
+            ),
           ],
         ),
       ) ??
       false;
 
-  Future<void> _run(Future<void> Function() action, {String? done}) async {
+  /// The owner removes the listing: it disappears from the app and from search. The server
+  /// archives it (history is kept for moderation), so to the owner this is a deletion.
+  Future<void> _deleteListing() async {
+    final confirmed = await _confirm(
+      'حذف الإعلان',
+      'سيُحذف الإعلان ويختفي من التطبيق ومن بحث الآخرين، ولا يمكنك استرجاعه. هل أنت متأكد؟',
+      confirmLabel: 'حذف الإعلان',
+      destructive: true,
+    );
+    if (!confirmed || !mounted) return;
+    final repo = ref.read(listingRepositoryProvider);
+    if (await _run(() => repo.archive(_id)) && mounted) {
+      _snack('تم حذف الإعلان');
+      context.pop();
+    }
+  }
+
+  /// Runs an action with the busy state; returns whether it succeeded.
+  Future<bool> _run(Future<void> Function() action, {String? done}) async {
     setState(() => _working = true);
     try {
       await action();
       _refresh();
       if (done != null && mounted) _snack(done);
+      return true;
     } on ApiException catch (e) {
       if (mounted) _snack(e.message);
+      return false;
     } finally {
       if (mounted) setState(() => _working = false);
     }
@@ -169,11 +215,8 @@ class _ManageListingScreenState extends ConsumerState<ManageListingScreen> {
                     await _run(() => repo.resume(_id), done: 'تم استئناف الإعلان');
                   } else if (v == 'renew') {
                     await _run(() => repo.renew(_id), done: 'تم تجديد الإعلان');
-                  } else if (v == 'archive') {
-                    if (await _confirm('أرشفة الإعلان', 'سيختفي الإعلان نهائياً من قائمتك ومن البحث. متأكد؟')) {
-                      await _run(() => repo.archive(_id));
-                      if (context.mounted) context.pop();
-                    }
+                  } else if (v == 'delete') {
+                    await _deleteListing();
                   }
                 },
                 itemBuilder: (_) => [
@@ -181,7 +224,11 @@ class _ManageListingScreenState extends ConsumerState<ManageListingScreen> {
                   if (l.status == 'PUBLISHED') const PopupMenuItem(value: 'pause', child: Text('إيقاف مؤقت')),
                   if (l.status == 'PAUSED') const PopupMenuItem(value: 'resume', child: Text('استئناف')),
                   if (l.status == 'EXPIRED') const PopupMenuItem(value: 'renew', child: Text('تجديد')),
-                  if (l.status != 'ARCHIVED') const PopupMenuItem(value: 'archive', child: Text('أرشفة')),
+                  if (l.status != 'ARCHIVED')
+                    PopupMenuItem(
+                      value: 'delete',
+                      child: Text('حذف الإعلان', style: TextStyle(color: Theme.of(context).colorScheme.error)),
+                    ),
                 ],
               ),
             ],
@@ -231,9 +278,16 @@ class _ManageListingScreenState extends ConsumerState<ManageListingScreen> {
               ]),
               const SizedBox(height: 12),
               if (l.media.isEmpty && _uploads.isEmpty)
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 24),
-                  child: Center(child: Text('لم تضف صوراً بعد. الإعلان بالصور يحصل على اهتمام أكبر بكثير.')),
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  child: Column(children: [
+                    const ClayIllustration(StateArt.addPhotos, size: 170),
+                    const SizedBox(height: 12),
+                    const Text(
+                      'لم تضف صوراً بعد. الإعلان بالصور يحصل على اهتمام أكبر بكثير.',
+                      textAlign: TextAlign.center,
+                    ),
+                  ]),
                 ),
               GridView.count(
                 crossAxisCount: 3,
@@ -289,6 +343,19 @@ class _ManageListingScreenState extends ConsumerState<ManageListingScreen> {
                     ),
                 ],
               ),
+              if (l.status != 'ARCHIVED') ...[
+                const SizedBox(height: 32),
+                OutlinedButton.icon(
+                  onPressed: _working ? null : _deleteListing,
+                  icon: const Icon(Icons.delete_outline),
+                  label: const Text('حذف الإعلان'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Theme.of(context).colorScheme.error,
+                    side: BorderSide(color: Theme.of(context).colorScheme.error.withValues(alpha: 0.6)),
+                    minimumSize: const Size.fromHeight(48),
+                  ),
+                ),
+              ],
             ],
           ),
           bottomNavigationBar: l.canSubmit
@@ -300,7 +367,7 @@ class _ManageListingScreenState extends ConsumerState<ManageListingScreen> {
                           ? null
                           : () async {
                               if (await _confirm('إرسال للمراجعة', 'سيُراجَع الإعلان قبل ظهوره للجميع. هل بياناته وصوره جاهزة؟')) {
-                                await _run(() => repo.submit(_id), done: 'تم إرسال الإعلان للمراجعة');
+                                if (await _run(() => repo.submit(_id)) && mounted) await showSubmittedDialog(this.context);
                               }
                             },
                       child: Text(l.media.isEmpty ? 'أضف صورة واحدة على الأقل لتتمكن من الإرسال' : 'إرسال للمراجعة'),

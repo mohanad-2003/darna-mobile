@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../features/account/about_screen.dart';
 import '../features/account/account_screen.dart';
+import '../features/account/delete_account_screen.dart';
+import '../features/account/phone_change_screen.dart';
+import '../features/account/profile_edit_screen.dart';
 import '../features/admin/admin_queue_screen.dart';
 import '../features/admin/admin_reports_screen.dart';
 import '../features/admin/admin_review_screen.dart';
@@ -50,6 +54,10 @@ final appRouter = GoRouter(
       builder: (_, state) =>
           PropertyDetailScreen(propertyId: state.pathParameters['id']!),
     ),
+    GoRoute(path: '/account/profile', builder: (_, _) => const ProfileEditScreen()),
+    GoRoute(path: '/account/phone', builder: (_, _) => const PhoneChangeScreen()),
+    GoRoute(path: '/account/delete', builder: (_, _) => const DeleteAccountScreen()),
+    GoRoute(path: '/account/about', builder: (_, _) => const AboutScreen()),
     GoRoute(path: '/admin/queue', builder: (_, _) => const AdminQueueScreen()),
     GoRoute(
       path: '/admin/reports',

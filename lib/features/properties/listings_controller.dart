@@ -12,6 +12,7 @@ class ListingsState {
     this.hasMore = true,
     this.loading = false,
     this.error,
+    this.offline = false,
     this.filters = const SearchFilters(),
   });
 
@@ -20,6 +21,7 @@ class ListingsState {
   final bool hasMore;
   final bool loading;
   final String? error;
+  final bool offline; // the failure was "cannot reach the server"
   final SearchFilters filters;
 
   ListingsState copyWith({
@@ -28,6 +30,7 @@ class ListingsState {
     bool? hasMore,
     bool? loading,
     String? error,
+    bool? offline,
     bool clearError = false,
     SearchFilters? filters,
   }) =>
@@ -37,6 +40,7 @@ class ListingsState {
         hasMore: hasMore ?? this.hasMore,
         loading: loading ?? this.loading,
         error: clearError ? null : (error ?? this.error),
+        offline: clearError ? false : (offline ?? this.offline),
         filters: filters ?? this.filters,
       );
 }
@@ -86,7 +90,7 @@ class ListingsController extends Notifier<ListingsState> {
       );
     } on ApiException catch (e) {
       if (generation != _generation) return;
-      state = state.copyWith(loading: false, error: e.message);
+      state = state.copyWith(loading: false, error: e.message, offline: e.isNetwork);
     }
   }
 }

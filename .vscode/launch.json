@@ -1,0 +1,17 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "دارنا (خادم Render)",
+      "request": "launch",
+      "type": "dart",
+      "args": ["--dart-define=API_BASE_URL=https://darna-api.onrender.com/api/v1"]
+    },
+    {
+      "name": "دارنا (خادم محلي على المحاكي)",
+      "request": "launch",
+      "type": "dart",
+      "args": ["--dart-define=API_BASE_URL=http://10.0.2.2:3000/api/v1"]
+    }
+  ]
+}

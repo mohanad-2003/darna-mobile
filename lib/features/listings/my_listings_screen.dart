@@ -1,9 +1,9 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
-import '../../core/api/api_exception.dart';
+import '../../core/widgets/illustration.dart';
+import 'package:go_router/go_router.dart';
 import '../../core/widgets/empty_state.dart';
 import '../auth/ensure_name.dart';
 import 'listing_models.dart';
@@ -33,19 +33,7 @@ class MyListingsScreen extends ConsumerWidget {
             ),
       body: listings.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(e is ApiException ? e.message : 'تعذر التحميل'),
-              const SizedBox(height: 12),
-              FilledButton(
-                onPressed: () => ref.invalidate(myListingsProvider),
-                child: const Text('إعادة المحاولة'),
-              ),
-            ],
-          ),
-        ),
+        error: (e, _) => ErrorStateView.from(e, onRetry: () => ref.invalidate(myListingsProvider)),
         data: (items) {
           if (items.isEmpty) {
             return EmptyStateView(

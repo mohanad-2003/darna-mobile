@@ -25,6 +25,8 @@ String formatPrice(PropertyCard p) {
   return '$amount $symbol$suffix';
 }
 
+String rentPeriodName(String period) => _rentSuffix[period] ?? '';
+
 String purposeName(String purpose) => purpose == 'RENT' ? 'للإيجار' : 'للبيع';
 
 String formatArea(String sqm) => '${NumberFormat('#,##0.##', 'en').format(double.parse(sqm))} م²';

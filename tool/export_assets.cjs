@@ -24,6 +24,68 @@ async function onboarding() {
 
 // The vector masters keep generous clear space. For use inside the app, write copies whose
 // viewBox hugs the artwork (plus a small margin), so a given height shows a bigger logo.
+// Screen illustrations (login, states): 800 px is plenty for the 170-260 dp they are shown at.
+// The originals are painted on a flat cream square. On screen they should sit directly on the
+// page, so the cream that touches the border is made transparent (see cutCreamBackground).
+async function illustrations() {
+  const dir = src('illustrations');
+  if (!fs.existsSync(dir)) return;
+  for (const f of fs.readdirSync(dir).filter((n) => n.endsWith('.png'))) {
+    const cut = await cutCreamBackground(path.join(dir, f));
+    await cut.resize(800).webp({ quality: 82, alphaQuality: 90, effort: 6 }).toFile(out('assets/illustrations/' + f.replace('.png', '.webp')));
+  }
+}
+
+// Flood-fills the near-cream pixels connected to the picture's border (so cream inside the
+// artwork is kept) and turns them transparent in proportion to their distance from the cream.
+// Edge colours are un-mixed from the cream, which avoids a light fringe on a dark screen.
+async function cutCreamBackground(file, { reach = 28, solid = 6 } = {}) {
+  const { data, info } = await sharp(file).removeAlpha().raw().toBuffer({ resolveWithObject: true });
+  const { width: w, height: h } = info;
+  const bg = [0, 0, 0];
+  const corners = [[2, 2], [w - 3, 2], [2, h - 3], [w - 3, h - 3]];
+  for (const [x, y] of corners) for (let c = 0; c < 3; c++) bg[c] += data[(y * w + x) * 3 + c] / corners.length;
+  const dist = (i) => Math.hypot(data[i] - bg[0], data[i + 1] - bg[1], data[i + 2] - bg[2]);
+
+  const reached = new Uint8Array(w * h);
+  const stack = [];
+  const push = (x, y) => {
+    const p = y * w + x;
+    if (!reached[p] && dist(p * 3) <= reach) { reached[p] = 1; stack.push(p); }
+  };
+  for (let x = 0; x < w; x++) { push(x, 0); push(x, h - 1); }
+  for (let y = 0; y < h; y++) { push(0, y); push(w - 1, y); }
+  while (stack.length) {
+    const p = stack.pop();
+    const x = p % w, y = (p / w) | 0;
+    if (x > 0) push(x - 1, y);
+    if (x < w - 1) push(x + 1, y);
+    if (y > 0) push(x, y - 1);
+    if (y < h - 1) push(x, y + 1);
+  }
+
+  const rgba = Buffer.alloc(w * h * 4);
+  for (let p = 0; p < w * h; p++) {
+    const i = p * 3, o = p * 4;
+    let a = 1;
+    if (reached[p]) a = Math.min(1, Math.max(0, (dist(i) - solid) / (reach - solid)));
+    for (let c = 0; c < 3; c++) {
+      const v = a > 0 ? (data[i + c] - bg[c] * (1 - a)) / a : data[i + c];
+      rgba[o + c] = Math.max(0, Math.min(255, Math.round(v)));
+    }
+    rgba[o + 3] = Math.round(a * 255);
+  }
+  // The generated pictures have a faint line along their outer edge; it must not show.
+  const margin = 6;
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      if (x < margin || y < margin || x >= w - margin || y >= h - margin) rgba[(y * w + x) * 4 + 3] = 0;
+    }
+  }
+  return sharp(rgba, { raw: { width: w, height: h, channels: 4 } });
+}
+
+
 async function logo() {
   const master = fs.readFileSync(out('assets/branding/darna_logo_master.svg'), 'utf8');
   const { info } = await sharp(Buffer.from(master)).png().trim({ threshold: 1 }).toBuffer({ resolveWithObject: true });
@@ -41,33 +103,12 @@ async function logo() {
   console.log('logo viewBox', left, top, w, h);
 }
 
-// The icon is a cream house on a teal square. Turning "how far a pixel is from teal" into
-// transparency gives the house alone, with smooth edges.
+// Use the vector symbol so future exports keep every platform on the same identity.
 async function houseOnly() {
-  const { data, info } = await sharp(src('darna_app_icon.png')).removeAlpha().raw().toBuffer({ resolveWithObject: true });
-  const { width, height } = info;
-  const luma = (i) => 0.2126 * data[i] + 0.7152 * data[i + 1] + 0.0722 * data[i + 2];
-
-  let tealLuma = 0;
-  const corners = [[4, 4], [width - 5, 4], [4, height - 5], [width - 5, height - 5]];
-  for (const [x, y] of corners) tealLuma += luma((y * width + x) * 3) / corners.length;
-  const creamLuma = 0.2126 * CREAM[0] + 0.7152 * CREAM[1] + 0.0722 * CREAM[2];
-
-  const rgba = Buffer.alloc(width * height * 4);
-  let minX = width, minY = height, maxX = 0, maxY = 0;
-  for (let y = 0; y < height; y++) {
-    for (let x = 0; x < width; x++) {
-      const a = Math.min(1, Math.max(0, (luma((y * width + x) * 3) - tealLuma) / (creamLuma - tealLuma)));
-      const o = (y * width + x) * 4;
-      rgba[o] = CREAM[0]; rgba[o + 1] = CREAM[1]; rgba[o + 2] = CREAM[2];
-      rgba[o + 3] = Math.round(a * 255);
-      if (a > 0.05) { minX = Math.min(minX, x); maxX = Math.max(maxX, x); minY = Math.min(minY, y); maxY = Math.max(maxY, y); }
-    }
-  }
-  const box = { left: minX, top: minY, width: maxX - minX + 1, height: maxY - minY + 1 };
-  return sharp(rgba, { raw: { width, height, channels: 4 } }).extract(box).png().toBuffer().then((buf) => ({ buf, box }));
+  const buf = await sharp(out('assets/branding/darna_symbol_dark.svg'))
+    .resize(1024).png().trim({ threshold: 1 }).toBuffer();
+  return { buf };
 }
-
 // Places the house, `houseHeight` tall, centered on a transparent square canvas.
 async function mark(house, canvas, houseHeight) {
   const h = Math.round(houseHeight);
@@ -94,7 +135,14 @@ async function androidAndMark() {
 }
 
 (async () => {
+  // `node tool/export_assets.cjs illustrations` rebuilds only the screen illustrations.
+  if (process.argv[2] === 'illustrations') {
+    await illustrations();
+    console.log('illustrations exported');
+    return;
+  }
   await onboarding();
+  await illustrations();
   await logo();
   await androidAndMark();
   console.log('assets exported');

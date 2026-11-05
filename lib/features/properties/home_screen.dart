@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../core/widgets/illustration.dart';
 import 'package:go_router/go_router.dart';
 
 import '../auth/ensure_name.dart';
@@ -161,14 +163,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       );
     }
     if (state.items.isEmpty && state.error != null) {
-      return _Message(
-        icon: Icons.wifi_off,
-        text: state.error!,
-        action: FilledButton(
-          onPressed: controller.loadFirst,
-          child: const Text('إعادة المحاولة'),
-        ),
-      );
+      return ErrorStateView.text(state.error!, offline: state.offline, onRetry: controller.loadFirst);
     }
     if (state.items.isEmpty) {
       final hasFilters =
@@ -280,28 +275,4 @@ class _LocationSheet extends ConsumerWidget {
       ),
     );
   }
-}
-
-class _Message extends StatelessWidget {
-  const _Message({required this.icon, required this.text, this.action});
-
-  final IconData icon;
-  final String text;
-  final Widget? action;
-
-  @override
-  Widget build(BuildContext context) => Center(
-    child: Padding(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 56, color: Theme.of(context).colorScheme.outline),
-          const SizedBox(height: 12),
-          Text(text, textAlign: TextAlign.center),
-          if (action != null) ...[const SizedBox(height: 16), action!],
-        ],
-      ),
-    ),
-  );
 }

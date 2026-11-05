@@ -6,6 +6,17 @@ import 'api_exception.dart';
 
 typedef Json = Map<String, dynamic>;
 
+/// True when the backend refused the access token itself (expired, or invalidated by a
+/// sign-out), as opposed to a 401 about the request, like a wrong one-time code on
+/// /me/account-deletion/confirm. Only the first kind is fixed by rotating the refresh
+/// token; retrying the second would spend another attempt on the code.
+bool isRejectedAccessToken(DioException error) {
+  if (error.response?.statusCode != 401) return false;
+  final data = error.response?.data;
+  final code = data is Map && data['error'] is Map ? (data['error'] as Map)['code'] : null;
+  return code == null || code == 'UNAUTHORIZED';
+}
+
 /// Thin JSON client over Dio. Adds the access token, and when the backend answers 401
 /// it rotates the refresh token once and retries the request.
 class ApiClient {
@@ -25,7 +36,7 @@ class ApiClient {
       onError: (error, handler) async {
         final req = error.requestOptions;
         final isAuthCall = req.path.startsWith('/auth/');
-        if (error.response?.statusCode == 401 &&
+        if (isRejectedAccessToken(error) &&
             !isAuthCall &&
             req.extra['retried'] != true &&
             await _tokens.refreshToken != null) {

@@ -61,6 +61,7 @@ class PropertyCard {
     this.location,
     this.office,
     this.isFavorite = false,
+    this.publishedAt,
   });
 
   final String id;
@@ -77,6 +78,7 @@ class PropertyCard {
   final LocationSummary? location;
   final OfficeSummary? office;
   final bool isFavorite;
+  final DateTime? publishedAt;
 
   factory PropertyCard.fromJson(Json j) => PropertyCard(
         id: j['id'] as String,
@@ -93,6 +95,7 @@ class PropertyCard {
         location: j['location'] is Map ? LocationSummary.fromJson(j['location'] as Json) : null,
         office: j['office'] is Map ? OfficeSummary.fromJson(j['office'] as Json) : null,
         isFavorite: (j['isFavorite'] as bool?) ?? false,
+        publishedAt: DateTime.tryParse((j['publishedAt'] as String?) ?? ''),
       );
 }
 
@@ -105,6 +108,9 @@ class PropertyDetail {
     this.furnished,
     this.addressText,
     required this.canRevealPhone,
+    this.latitude,
+    this.longitude,
+    this.isApproximateLocation = true,
   });
 
   final PropertyCard card;
@@ -114,6 +120,12 @@ class PropertyDetail {
   final bool? furnished;
   final String? addressText;
   final bool canRevealPhone;
+  // Public coordinates: approximate unless the advertiser allowed the exact spot.
+  final double? latitude;
+  final double? longitude;
+  final bool isApproximateLocation;
+
+  bool get hasLocation => latitude != null && longitude != null;
 
   factory PropertyDetail.fromJson(Json j) => PropertyDetail(
         card: PropertyCard.fromJson(j),
@@ -125,6 +137,9 @@ class PropertyDetail {
         furnished: j['furnished'] as bool?,
         addressText: j['addressText'] as String?,
         canRevealPhone: (j['canRevealPhone'] as bool?) ?? false,
+        latitude: (j['displayLatitude'] as num?)?.toDouble(),
+        longitude: (j['displayLongitude'] as num?)?.toDouble(),
+        isApproximateLocation: (j['isApproximateLocation'] as bool?) ?? true,
       );
 }
 

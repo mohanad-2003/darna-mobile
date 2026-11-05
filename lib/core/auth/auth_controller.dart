@@ -64,12 +64,14 @@ class AuthController extends AsyncNotifier<Me?> {
       '/auth/otp/request',
       body: {'phone': phone, 'purpose': 'AUTH', 'channel': 'SMS'},
     );
-    return OtpChallenge(
-      challengeId: res['challengeId'] as String,
-      expiresInSeconds: res['expiresInSeconds'] as int,
-      resendAfterSeconds: res['resendAfterSeconds'] as int,
-    );
+    return _challengeFrom(res);
   }
+
+  OtpChallenge _challengeFrom(Json res) => OtpChallenge(
+        challengeId: res['challengeId'] as String,
+        expiresInSeconds: res['expiresInSeconds'] as int,
+        resendAfterSeconds: res['resendAfterSeconds'] as int,
+      );
 
   /// Returns true when the account was just created (the app then asks for a name).
   Future<bool> verifyOtp({required String phone, required String challengeId, required String code}) async {
@@ -85,9 +87,52 @@ class AuthController extends AsyncNotifier<Me?> {
     return res['isNewUser'] as bool;
   }
 
-  Future<void> updateName(String fullName) async {
-    final res = await ref.read(apiClientProvider).patch('/me', body: {'fullName': fullName});
+  Future<void> updateName(String fullName) => updateProfile({'fullName': fullName});
+
+  /// Saves the given profile fields ('fullName', 'email': a string, or null to clear it)
+  /// and publishes the account the server returns, so every screen shows the new data.
+  Future<void> updateProfile(Map<String, Object?> changes) async {
+    final res = await ref.read(apiClientProvider).patch('/me', body: changes);
     state = AsyncData(Me.fromJson(res['data'] as Json));
+  }
+
+  /// Sends a code to the new number. The account keeps its number until [confirmPhoneChange].
+  Future<OtpChallenge> requestPhoneChange(String phone) async {
+    final res = await ref.read(apiClientProvider).post('/me/phone-change/request', body: {'phone': phone});
+    return _challengeFrom(res);
+  }
+
+  /// Moves the account to the verified number. The server ends the other sessions and
+  /// answers with a fresh one, which replaces the stored tokens.
+  Future<void> confirmPhoneChange({
+    required String phone,
+    required String challengeId,
+    required String code,
+  }) async {
+    final res = await ref.read(apiClientProvider).post(
+      '/me/phone-change/confirm',
+      body: {'phone': phone, 'challengeId': challengeId, 'code': code},
+    );
+    await ref.read(tokenStoreProvider).save(
+          access: res['accessToken'] as String,
+          refresh: res['refreshToken'] as String,
+        );
+    state = AsyncData(Me.fromJson(res['user'] as Json));
+  }
+
+  /// Sends the re-verification code to the account's current number.
+  Future<OtpChallenge> requestAccountDeletion() async =>
+      _challengeFrom(await ref.read(apiClientProvider).post('/me/account-deletion/request'));
+
+  /// Deletes the account on the server. Only after the server confirms does the app
+  /// forget the session; if the request fails, nothing local changes.
+  Future<void> deleteAccount({required String challengeId, required String code}) async {
+    await ref.read(apiClientProvider).post(
+      '/me/account-deletion/confirm',
+      body: {'challengeId': challengeId, 'code': code},
+    );
+    await ref.read(tokenStoreProvider).clear();
+    state = const AsyncData(null);
   }
 
   Future<void> logout() async {
