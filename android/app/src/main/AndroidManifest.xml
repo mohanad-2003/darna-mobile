@@ -1,5 +1,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- The app talks to the Darna API, so release builds need network access.
+         (The debug and profile manifests also declare it for the Flutter tooling.) -->
+    <uses-permission android:name="android.permission.INTERNET"/>
     <application
+        android:usesCleartextTraffic="false"
         android:label="دارنا"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_darna">
