@@ -133,6 +133,7 @@ Widget testApp({
   double textScale = 1,
   String screenPath = '/screen',
   GlobalKey<NavigatorState>? navigatorKey,
+  List<RouteBase> extraRoutes = const [],
 }) {
   Widget placeholder(String name) => Scaffold(body: Center(child: Text(name)));
   final router = GoRouter(
@@ -156,6 +157,7 @@ Widget testApp({
       GoRoute(path: '/inquiries', builder: (_, _) => placeholder('inquiries-page')),
       GoRoute(path: '/admin/queue', builder: (_, _) => placeholder('queue-page')),
       GoRoute(path: '/admin/reports', builder: (_, _) => placeholder('reports-page')),
+      ...extraRoutes,
     ],
   );
   return ProviderScope(

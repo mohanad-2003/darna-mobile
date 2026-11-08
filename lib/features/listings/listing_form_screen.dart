@@ -1,3 +1,6 @@
+import 'dart:async';
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -7,6 +10,7 @@ import '../../core/api/api_client.dart';
 import '../../core/api/api_exception.dart';
 import '../../core/auth/auth_controller.dart';
 import '../properties/format.dart';
+import 'listing_local_store.dart';
 import 'listing_models.dart';
 import 'listing_repository.dart';
 import 'location_picker.dart';
@@ -46,7 +50,7 @@ class _ListingForm extends ConsumerStatefulWidget {
   ConsumerState<_ListingForm> createState() => _ListingFormState();
 }
 
-class _ListingFormState extends ConsumerState<_ListingForm> {
+class _ListingFormState extends ConsumerState<_ListingForm> with WidgetsBindingObserver {
   // Three short steps instead of one long scroll. Every step's form stays built (IndexedStack),
   // so values are kept and the final save can validate all of them.
   final _stepKeys = [GlobalKey<FormState>(), GlobalKey<FormState>(), GlobalKey<FormState>()];
@@ -75,6 +79,17 @@ class _ListingFormState extends ConsumerState<_ListingForm> {
   bool _saving = false;
   bool _locationMissing = false;
 
+  // ---- unsaved changes and the local draft (new listings only)
+  late final ListingLocalStore _store;
+  String? _accountId; // the account the draft belongs to; null when nobody is signed in
+  late final String _initialSnapshot; // the form as it was when it opened
+  String? _lastSavedSnapshot;
+  bool _wasDirty = false;
+  bool _saved = false; // the listing was sent: nothing is unsaved any more
+  bool _discarded = false; // the user chose to throw the changes away
+  Map<String, Object?>? _offeredDraft; // a stored draft waiting for "restore" or "delete"
+  Timer? _draftTimer;
+
   bool get _isLand => _type == 'LAND';
   bool get _isEdit => widget.initial != null;
 
@@ -84,9 +99,39 @@ class _ListingFormState extends ConsumerState<_ListingForm> {
     return v.contains('.') ? v.replaceFirst(RegExp(r'\.?0+$'), '') : v;
   }
 
+  // Taken while the screen is alive. Unlike `ref`, it is still usable after dispose.
+  late final ProviderContainer _container;
+
+  List<TextEditingController> get _controllers =>
+      [_title, _description, _price, _area, _bedrooms, _bathrooms, _floor, _address, _phone];
+
+  @override
+  void initState() {
+    super.initState();
+    _container = ProviderScope.containerOf(context, listen: false);
+    _store = ref.read(listingLocalStoreProvider);
+    _accountId = ref.read(authControllerProvider).value?.id;
+    _initialSnapshot = _snapshotJson();
+    for (final c in _controllers) {
+      c.addListener(_onChanged);
+    }
+    WidgetsBinding.instance.addObserver(this);
+    // The account may still be loading here: build() picks it up when it arrives.
+    if (!_isEdit && _accountId != null) unawaited(_offerDraft());
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Going to the background is when Android may end the app: write the draft now.
+    if (state != AppLifecycleState.resumed) unawaited(_flushDraft());
+  }
+
   @override
   void dispose() {
-    for (final c in [_title, _description, _price, _area, _bedrooms, _bathrooms, _floor, _address, _phone]) {
+    WidgetsBinding.instance.removeObserver(this);
+    _draftTimer?.cancel();
+    unawaited(_flushDraft()); // reads the fields before they are disposed just below
+    for (final c in _controllers) {
       c.dispose();
     }
     super.dispose();
@@ -117,7 +162,7 @@ class _ListingFormState extends ConsumerState<_ListingForm> {
   Future<void> _chooseLocation() async {
     final picked = await pickLocation(context);
     if (picked != null) {
-      setState(() {
+      _set(() {
         _locationId = picked.id;
         _locationName = picked.name;
         _locationMissing = false;
@@ -160,6 +205,7 @@ class _ListingFormState extends ConsumerState<_ListingForm> {
   }
 
   Future<void> _save() async {
+    if (_saving) return; // a second tap while the first save runs would create a duplicate
     for (var i = 0; i < _stepKeys.length; i++) {
       if (!_validateStep(i)) {
         setState(() => _step = i); // show the first step with a problem
@@ -174,8 +220,9 @@ class _ListingFormState extends ConsumerState<_ListingForm> {
       if (_isEdit) {
         final id = widget.initial!.id;
         final saved = await repo.update(id, _body());
-        ref.invalidate(ownerListingProvider(id));
-        ref.invalidate(myListingsProvider);
+        _saved = true;
+        _container.invalidate(ownerListingProvider(id));
+        _container.invalidate(myListingsProvider);
         if (!mounted) return;
         if (saved.status == 'PENDING_REVIEW' && widget.initial!.status != 'PENDING_REVIEW') {
           messenger.showSnackBar(const SnackBar(
@@ -186,24 +233,204 @@ class _ListingFormState extends ConsumerState<_ListingForm> {
         context.pop();
       } else {
         final created = await repo.create(_body());
-        ref.invalidate(myListingsProvider);
+        _saved = true;
+        _draftTimer?.cancel();
+        unawaited(_clearStoredDraft()); // the listing exists now: the draft has done its job
+        _container.invalidate(myListingsProvider);
         if (!mounted) return;
         // Next: photos. Replace this screen so "back" does not return to a filled form.
         context.pushReplacement('/listing/${created.id}');
       }
     } on ApiException catch (e) {
       messenger.showSnackBar(SnackBar(content: Text(e.message)));
+    } catch (_) {
+      messenger.showSnackBar(const SnackBar(content: Text('حدث خطأ غير متوقع، حاول مرة أخرى')));
     } finally {
       if (mounted) setState(() => _saving = false);
     }
   }
 
+  // ---- unsaved changes and the draft
+
+  /// Every value the user can change, as plain data. Also what a draft stores: only text and
+  /// choices, no tokens and no photos (photos are sent after the listing exists).
+  Map<String, Object?> _snapshotMap() => {
+        'purpose': _purpose,
+        'type': _type,
+        'currency': _currency,
+        'rentPeriod': _rentPeriod,
+        'furnished': _furnished,
+        'showPhone': _showPhone,
+        'allowWhatsapp': _allowWhatsapp,
+        'locationId': _locationId,
+        'locationName': _locationName,
+        'title': _title.text,
+        'description': _description.text,
+        'price': _price.text,
+        'area': _area.text,
+        'bedrooms': _bedrooms.text,
+        'bathrooms': _bathrooms.text,
+        'floor': _floor.text,
+        'address': _address.text,
+        'phone': _phone.text,
+      };
+
+  String _snapshotJson() => jsonEncode(_snapshotMap());
+
+  bool get _dirty => _snapshotJson() != _initialSnapshot;
+
+  bool get _canKeepDraft => !_isEdit && _accountId != null;
+
+  /// A change of text, choice or location: refresh the unsaved-changes state and (for a new
+  /// listing) write the draft shortly after the user stops typing.
+  void _onChanged() {
+    final dirty = _dirty;
+    if (dirty != _wasDirty) {
+      _wasDirty = dirty;
+      if (mounted) setState(() {});
+    }
+    if (_canKeepDraft) {
+      _draftTimer?.cancel();
+      _draftTimer = Timer(const Duration(milliseconds: 800), () => unawaited(_flushDraft()));
+    }
+  }
+
+  void _set(VoidCallback change) {
+    setState(change);
+    _onChanged();
+  }
+
+  Future<void> _flushDraft() async {
+    _draftTimer?.cancel();
+    final id = _accountId;
+    // While an older draft is still being offered, writing would silently replace it.
+    if (!_canKeepDraft || id == null || _saved || _discarded || _offeredDraft != null) return;
+    final snapshot = _snapshotJson();
+    if (snapshot == _lastSavedSnapshot) return;
+    _lastSavedSnapshot = snapshot;
+    if (snapshot == _initialSnapshot) {
+      await _store.clearDraft(id); // back to a blank form: nothing worth keeping
+    } else {
+      await _store.saveDraft(id, {..._snapshotMap(), 'step': _step});
+    }
+  }
+
+  Future<void> _clearStoredDraft() async {
+    final id = _accountId;
+    if (id != null) await _store.clearDraft(id);
+  }
+
+  Future<void> _offerDraft() async {
+    final id = _accountId;
+    if (id == null) return;
+    final draft = await _store.loadDraft(id);
+    if (draft == null || !mounted) return;
+    final fields = {...draft}..remove('step');
+    if (jsonEncode(fields) == _initialSnapshot) return; // nothing different from a blank form
+    setState(() => _offeredDraft = draft);
+  }
+
+  void _restoreDraft() {
+    final d = _offeredDraft;
+    if (d == null) return;
+    String text(String k) => d[k] is String ? d[k] as String : '';
+    bool flag(String k, bool fallback) => d[k] is bool ? d[k] as bool : fallback;
+    String choice(String k, Iterable<String> allowed, String fallback) =>
+        allowed.contains(d[k]) ? d[k] as String : fallback;
+
+    _title.text = text('title');
+    _description.text = text('description');
+    _price.text = text('price');
+    _area.text = text('area');
+    _bedrooms.text = text('bedrooms');
+    _bathrooms.text = text('bathrooms');
+    _floor.text = text('floor');
+    _address.text = text('address');
+    if (text('phone').isNotEmpty) _phone.text = text('phone');
+    setState(() {
+      _purpose = choice('purpose', const ['SALE', 'RENT'], _purpose);
+      _type = choice('type', propertyTypeNames.keys, _type);
+      _currency = choice('currency', _currencies.keys, _currency);
+      _rentPeriod = choice('rentPeriod', _periods.keys, _rentPeriod);
+      _furnished = flag('furnished', _furnished);
+      _showPhone = flag('showPhone', _showPhone);
+      _allowWhatsapp = flag('allowWhatsapp', _allowWhatsapp);
+      final loc = d['locationId'];
+      _locationId = loc is String && loc.isNotEmpty ? loc : null;
+      _locationName = text('locationName');
+      _locationMissing = false;
+      final step = d['step'];
+      _step = step is int && step >= 0 && step < _stepTitles.length ? step : 0;
+      _offeredDraft = null;
+    });
+    _lastSavedSnapshot = _snapshotJson();
+    _wasDirty = _dirty;
+  }
+
+  Future<void> _discardOffered() async {
+    setState(() => _offeredDraft = null);
+    await _clearStoredDraft();
+  }
+
+  Future<void> _confirmLeave() async {
+    final choice = await showDialog<_Leave>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(_isEdit ? 'تجاهل التعديلات؟' : 'حفظ الإعلان كمسودة؟'),
+        content: Text(_isEdit
+            ? 'لديك تعديلات لم تُحفظ.'
+            : 'لديك بيانات لم تُرسل بعد. يمكن حفظ ما كتبته على هذا الجهاز لتكمله لاحقاً.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(_Leave.stay),
+            child: const Text('متابعة التعديل'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(_Leave.discard),
+            child: const Text('تجاهل'),
+          ),
+          if (_canKeepDraft)
+            FilledButton(
+              onPressed: () => Navigator.of(dialogContext).pop(_Leave.keep),
+              child: const Text('حفظ ومغادرة'),
+            ),
+        ],
+      ),
+    );
+    if (!mounted || choice == null || choice == _Leave.stay) return;
+
+    if (choice == _Leave.keep) {
+      setState(() => _offeredDraft = null); // what the user typed replaces the older draft
+      await _flushDraft();
+    } else {
+      _discarded = true;
+      _draftTimer?.cancel();
+      // An older draft the user never answered stays; the autosaved copy of these edits goes.
+      if (_canKeepDraft && _offeredDraft == null) await _clearStoredDraft();
+    }
+    if (mounted) context.pop();
+  }
+
   @override
   Widget build(BuildContext context) {
     final last = _step == _stepTitles.length - 1;
-    return Scaffold(
+    // The draft belongs to an account, so follow the account (it may load after this screen opens).
+    final accountId = ref.watch(authControllerProvider.select((a) => a.value?.id));
+    if (accountId != _accountId) {
+      _accountId = accountId;
+      _offeredDraft = null;
+      if (!_isEdit && accountId != null) unawaited(_offerDraft());
+    }
+    return PopScope(
+      canPop: _saved || (!_dirty && !_saving),
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop || _saving) return;
+        _confirmLeave();
+      },
+      child: Scaffold(
       appBar: AppBar(title: Text(_isEdit ? 'تعديل الإعلان' : 'إعلان جديد')),
       body: Column(children: [
+        if (_offeredDraft != null) _DraftBanner(onRestore: _restoreDraft, onDiscard: _discardOffered),
         _StepHeader(
           titles: _stepTitles,
           current: _step,
@@ -241,6 +468,7 @@ class _ListingFormState extends ConsumerState<_ListingForm> {
           ]),
         ),
       ),
+      ),
     );
   }
 
@@ -257,7 +485,7 @@ class _ListingFormState extends ConsumerState<_ListingForm> {
               ButtonSegment(value: 'RENT', label: Text('للإيجار')),
             ],
             selected: {_purpose},
-            onSelectionChanged: (s) => setState(() => _purpose = s.first),
+            onSelectionChanged: (s) => _set(() => _purpose = s.first),
           ),
           _gap,
           DropdownButtonFormField<String>(
@@ -266,7 +494,7 @@ class _ListingFormState extends ConsumerState<_ListingForm> {
             items: [
               for (final e in propertyTypeNames.entries) DropdownMenuItem(value: e.key, child: Text(e.value)),
             ],
-            onChanged: (v) => setState(() => _type = v!),
+            onChanged: (v) => _set(() => _type = v!),
           ),
           _gap,
           InputDecorator(
@@ -328,7 +556,7 @@ class _ListingFormState extends ConsumerState<_ListingForm> {
               decoration: const InputDecoration(labelText: 'العملة', border: OutlineInputBorder()),
               isExpanded: true,
               items: [for (final e in _currencies.entries) DropdownMenuItem(value: e.key, child: Text(e.value))],
-              onChanged: (v) => setState(() => _currency = v!),
+              onChanged: (v) => _set(() => _currency = v!),
             ),
           ),
         ]),
@@ -338,7 +566,7 @@ class _ListingFormState extends ConsumerState<_ListingForm> {
             initialValue: _rentPeriod,
             decoration: const InputDecoration(labelText: 'مدة الإيجار', border: OutlineInputBorder()),
             items: [for (final e in _periods.entries) DropdownMenuItem(value: e.key, child: Text(e.value))],
-            onChanged: (v) => setState(() => _rentPeriod = v!),
+            onChanged: (v) => _set(() => _rentPeriod = v!),
           ),
         ],
         _gap,
@@ -386,7 +614,7 @@ class _ListingFormState extends ConsumerState<_ListingForm> {
             contentPadding: EdgeInsets.zero,
             title: const Text('مفروش'),
             value: _furnished,
-            onChanged: (v) => setState(() => _furnished = v),
+            onChanged: (v) => _set(() => _furnished = v),
           ),
         ],
         const SizedBox(height: 8),
@@ -430,13 +658,13 @@ class _ListingFormState extends ConsumerState<_ListingForm> {
           title: const Text('السماح بإظهار رقمي للمهتمين'),
           subtitle: const Text('عند الإيقاف يتواصل المهتمون عبر الاستفسارات داخل التطبيق فقط'),
           value: _showPhone,
-          onChanged: (v) => setState(() => _showPhone = v),
+          onChanged: (v) => _set(() => _showPhone = v),
         ),
         SwitchListTile(
           contentPadding: EdgeInsets.zero,
           title: const Text('السماح بالتواصل عبر واتساب'),
           value: _allowWhatsapp,
-          onChanged: _showPhone ? (v) => setState(() => _allowWhatsapp = v) : null,
+          onChanged: _showPhone ? (v) => _set(() => _allowWhatsapp = v) : null,
         ),
         _gap,
         // A last look at what is about to be saved.
@@ -530,6 +758,36 @@ class _StepHeader extends StatelessWidget {
             ]),
           ),
         ],
+      ]),
+    );
+  }
+}
+
+enum _Leave { stay, discard, keep }
+
+/// Shown above the steps when this account has an unfinished draft on the device.
+class _DraftBanner extends StatelessWidget {
+  const _DraftBanner({required this.onRestore, required this.onDiscard});
+
+  final VoidCallback onRestore;
+  final VoidCallback onDiscard;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      width: double.infinity,
+      color: scheme.secondaryContainer,
+      padding: const EdgeInsetsDirectional.fromSTEB(16, 10, 8, 6),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(
+          'لديك مسودة إعلان غير مكتملة على هذا الجهاز.',
+          style: TextStyle(color: scheme.onSecondaryContainer, fontWeight: FontWeight.w600),
+        ),
+        Row(children: [
+          TextButton(onPressed: onRestore, child: const Text('استعادة المسودة')),
+          TextButton(onPressed: onDiscard, child: const Text('حذف المسودة')),
+        ]),
       ]),
     );
   }
