@@ -28,7 +28,8 @@ class ManageListingScreen extends ConsumerStatefulWidget {
   final String propertyId;
 
   @override
-  ConsumerState<ManageListingScreen> createState() => _ManageListingScreenState();
+  ConsumerState<ManageListingScreen> createState() =>
+      _ManageListingScreenState();
 }
 
 class _ManageListingScreenState extends ConsumerState<ManageListingScreen> {
@@ -38,26 +39,44 @@ class _ManageListingScreenState extends ConsumerState<ManageListingScreen> {
   // The system picker allows one open window at a time; a second request while it is open
   // (a double tap) fails with "already_active".
   bool _picking = false;
+  // Taken while the screen is alive. Unlike `ref`, it is still usable after dispose.
+  late final ProviderContainer _container;
+
+  @override
+  void initState() {
+    super.initState();
+    _container = ProviderScope.containerOf(context, listen: false);
+  }
 
   String get _id => widget.propertyId;
   bool get _uploading => _uploads.any((u) => u.error == null);
 
   void _refresh() {
-    ref.invalidate(ownerListingProvider(_id));
-    ref.invalidate(myListingsProvider);
+    _container.invalidate(ownerListingProvider(_id));
+    _container.invalidate(myListingsProvider);
   }
 
-  void _snack(String text) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
+  void _snack(String text) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
+  }
 
   Future<void> _addPhotos(OwnerListing listing) async {
     if (_picking) return;
     _picking = true;
     final List<XFile> picked;
+
     try {
-      picked = await _picker.pickMultiImage(imageQuality: 85, maxWidth: 2400, maxHeight: 2400);
+      picked = await _picker.pickMultiImage(
+        imageQuality: 85,
+        maxWidth: 2400,
+        maxHeight: 2400,
+      );
     } on PlatformException catch (e) {
       // "already_active": another picker window is still open, so there is nothing to report.
-      if (e.code != 'already_active' && mounted) _snack('تعذر فتح معرض الصور، حاول مرة أخرى');
+      if (e.code != 'already_active') {
+        _snack('تعذر فتح معرض الصور، حاول مرة أخرى');
+      }
       return;
     } finally {
       _picking = false;
@@ -69,71 +88,104 @@ class _ManageListingScreenState extends ConsumerState<ManageListingScreen> {
       _snack('وصلت إلى الحد الأقصى ($_maxPhotos صورة)');
       return;
     }
-    if (picked.length > room) _snack('سيُرفع أول $room صور فقط (الحد الأقصى $_maxPhotos)');
+    if (picked.length > room) {
+      _snack('سيُرفع أول $room صور فقط (الحد الأقصى $_maxPhotos)');
+    }
 
     final repo = ref.read(listingRepositoryProvider);
     for (final file in picked.take(room)) {
+      if (!mounted) return; // the user left: stop starting new uploads
       final item = _UploadItem(file.name);
       setState(() => _uploads.add(item));
       try {
         final bytes = await file.readAsBytes();
         final type = sniffImageType(bytes);
-        if (type == null) throw ApiException(status: 0, code: 'TYPE', message: 'نوع الصورة غير مدعوم (JPG أو PNG أو WebP)');
-        if (bytes.length > _maxBytes) throw ApiException(status: 0, code: 'SIZE', message: 'الصورة أكبر من 10 ميغابايت');
+        if (type == null) {
+          throw ApiException(
+            status: 0,
+            code: 'TYPE',
+            message: 'نوع الصورة غير مدعوم (JPG أو PNG أو WebP)',
+          );
+        }
+        if (bytes.length > _maxBytes) {
+          throw ApiException(
+            status: 0,
+            code: 'SIZE',
+            message: 'الصورة أكبر من 10 ميغابايت',
+          );
+        }
 
         final ticket = await repo.uploadTicket(_id, type, bytes.length);
         await repo.putToStorage(ticket, bytes);
         await repo.attach(_id, ticket.uploadId);
-        ref.invalidate(ownerListingProvider(_id));
+        _refresh();
         if (mounted) setState(() => _uploads.remove(item));
       } on ApiException catch (e) {
         if (mounted) setState(() => item.error = e.message);
+      } catch (_) {
+        // The file could not be read (removed, no permission) or something unexpected:
+        // the picture must end in a visible error, never spin forever.
+        if (mounted) {
+          setState(() => item.error = 'تعذرت قراءة الصورة أو رفعها، حاول مرة أخرى');
+        }
       }
     }
-    ref.invalidate(myListingsProvider);
+    _refresh();
   }
 
-  Future<void> _photoActions(ListingMedia m, bool isOnlyPhoto, OwnerListing listing) async {
+  Future<void> _photoActions(
+    ListingMedia m,
+    bool isOnlyPhoto,
+    OwnerListing listing,
+  ) async {
     final action = await showModalBottomSheet<String>(
       context: context,
       showDragHandle: true,
-      builder: (_) => SafeArea(
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          if (!m.isCover)
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (!m.isCover)
+              ListTile(
+                leading: const Icon(Icons.star_outline),
+                title: const Text('جعلها صورة الغلاف'),
+                onTap: () => Navigator.of(sheetContext).pop('cover'),
+              ),
             ListTile(
-              leading: const Icon(Icons.star_outline),
-              title: const Text('جعلها صورة الغلاف'),
-              onTap: () => Navigator.of(context).pop('cover'),
+              leading: const Icon(Icons.delete_outline, color: Colors.red),
+              title: const Text('حذف الصورة'),
+              onTap: () => Navigator.of(sheetContext).pop('delete'),
             ),
-          ListTile(
-            leading: const Icon(Icons.delete_outline, color: Colors.red),
-            title: const Text('حذف الصورة'),
-            onTap: () => Navigator.of(context).pop('delete'),
-          ),
-        ]),
+          ],
+        ),
       ),
     );
-    if (action == null) return;
+    if (action == null || !mounted) return;
     final repo = ref.read(listingRepositoryProvider);
-    try {
-      if (action == 'cover') await repo.setCover(_id, m.id);
-      if (action == 'delete') await repo.deleteMedia(_id, m.id);
-      _refresh();
-    } on ApiException catch (e) {
-      _snack(e.code == 'CONFLICT' ? 'لا يمكن حذف آخر صورة من إعلان منشور' : e.message);
-    }
+    await _run(
+      () => action == 'cover' ? repo.setCover(_id, m.id) : repo.deleteMedia(_id, m.id),
+      errorText: (e) => e.code == 'CONFLICT' ? 'لا يمكن حذف آخر صورة من إعلان منشور' : e.message,
+    );
   }
 
-  Future<bool> _confirm(String title, String body, {String confirmLabel = 'تأكيد', bool destructive = false}) async =>
+  Future<bool> _confirm(
+    String title,
+    String body, {
+    String confirmLabel = 'تأكيد',
+    bool destructive = false,
+  }) async =>
       await showDialog<bool>(
         context: context,
-        builder: (_) => AlertDialog(
+        builder: (dialogContext) => AlertDialog(
           title: Text(title),
           content: Text(body),
           actions: [
-            TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('إلغاء')),
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('إلغاء'),
+            ),
             FilledButton(
-              onPressed: () => Navigator.of(context).pop(true),
+              onPressed: () => Navigator.of(dialogContext).pop(true),
               style: destructive
                   ? FilledButton.styleFrom(
                       backgroundColor: Theme.of(context).colorScheme.error,
@@ -165,15 +217,23 @@ class _ManageListingScreenState extends ConsumerState<ManageListingScreen> {
   }
 
   /// Runs an action with the busy state; returns whether it succeeded.
-  Future<bool> _run(Future<void> Function() action, {String? done}) async {
+  Future<bool> _run(
+    Future<void> Function() action, {
+    String? done,
+    String Function(ApiException e)? errorText,
+  }) async {
+    if (_working) return false; // a second tap while the first action is still running
     setState(() => _working = true);
     try {
       await action();
       _refresh();
-      if (done != null && mounted) _snack(done);
+      if (done != null) _snack(done);
       return true;
     } on ApiException catch (e) {
-      if (mounted) _snack(e.message);
+      _snack(errorText?.call(e) ?? e.message);
+      return false;
+    } catch (_) {
+      _snack('حدث خطأ غير متوقع، حاول مرة أخرى');
       return false;
     } finally {
       if (mounted) setState(() => _working = false);
@@ -186,15 +246,24 @@ class _ManageListingScreenState extends ConsumerState<ManageListingScreen> {
     final repo = ref.read(listingRepositoryProvider);
 
     return listingAsync.when(
-      loading: () => Scaffold(appBar: AppBar(), body: const Center(child: CircularProgressIndicator())),
+      loading: () => Scaffold(
+        appBar: AppBar(),
+        body: const Center(child: CircularProgressIndicator()),
+      ),
       error: (e, _) => Scaffold(
         appBar: AppBar(),
         body: Center(
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
-            Text(e is ApiException ? e.message : 'تعذر تحميل الإعلان'),
-            const SizedBox(height: 12),
-            FilledButton(onPressed: _refresh, child: const Text('إعادة المحاولة')),
-          ]),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(e is ApiException ? e.message : 'تعذر تحميل الإعلان'),
+              const SizedBox(height: 12),
+              FilledButton(
+                onPressed: _refresh,
+                child: const Text('إعادة المحاولة'),
+              ),
+            ],
+          ),
         ),
       ),
       data: (l) {
@@ -210,9 +279,15 @@ class _ManageListingScreenState extends ConsumerState<ManageListingScreen> {
                     await context.push('/listing/$_id/edit');
                     _refresh();
                   } else if (v == 'pause') {
-                    await _run(() => repo.pause(_id), done: 'تم إيقاف الإعلان مؤقتاً');
+                    await _run(
+                      () => repo.pause(_id),
+                      done: 'تم إيقاف الإعلان مؤقتاً',
+                    );
                   } else if (v == 'resume') {
-                    await _run(() => repo.resume(_id), done: 'تم استئناف الإعلان');
+                    await _run(
+                      () => repo.resume(_id),
+                      done: 'تم استئناف الإعلان',
+                    );
                   } else if (v == 'renew') {
                     await _run(() => repo.renew(_id), done: 'تم تجديد الإعلان');
                   } else if (v == 'delete') {
@@ -220,14 +295,32 @@ class _ManageListingScreenState extends ConsumerState<ManageListingScreen> {
                   }
                 },
                 itemBuilder: (_) => [
-                  if (l.isEditable) const PopupMenuItem(value: 'edit', child: Text('تعديل البيانات')),
-                  if (l.status == 'PUBLISHED') const PopupMenuItem(value: 'pause', child: Text('إيقاف مؤقت')),
-                  if (l.status == 'PAUSED') const PopupMenuItem(value: 'resume', child: Text('استئناف')),
-                  if (l.status == 'EXPIRED') const PopupMenuItem(value: 'renew', child: Text('تجديد')),
+                  if (l.isEditable)
+                    const PopupMenuItem(
+                      value: 'edit',
+                      child: Text('تعديل البيانات'),
+                    ),
+                  if (l.status == 'PUBLISHED')
+                    const PopupMenuItem(
+                      value: 'pause',
+                      child: Text('إيقاف مؤقت'),
+                    ),
+                  if (l.status == 'PAUSED')
+                    const PopupMenuItem(
+                      value: 'resume',
+                      child: Text('استئناف'),
+                    ),
+                  if (l.status == 'EXPIRED')
+                    const PopupMenuItem(value: 'renew', child: Text('تجديد')),
                   if (l.status != 'ARCHIVED')
                     PopupMenuItem(
                       value: 'delete',
-                      child: Text('حذف الإعلان', style: TextStyle(color: Theme.of(context).colorScheme.error)),
+                      child: Text(
+                        'حذف الإعلان',
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.error,
+                        ),
+                      ),
                     ),
                 ],
               ),
@@ -249,14 +342,27 @@ class _ManageListingScreenState extends ConsumerState<ManageListingScreen> {
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(color: info.color.withValues(alpha: 0.4)),
                 ),
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(info.label, style: TextStyle(color: info.color, fontWeight: FontWeight.bold)),
-                  if (info.hint.isNotEmpty) Text(info.hint),
-                  if (l.moderationReason != null && l.moderationReason!.isNotEmpty) ...[
-                    const SizedBox(height: 8),
-                    Text('ملاحظة المراجع: ${l.moderationReason}', style: const TextStyle(fontWeight: FontWeight.w600)),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      info.label,
+                      style: TextStyle(
+                        color: info.color,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    if (info.hint.isNotEmpty) Text(info.hint),
+                    if (l.moderationReason != null &&
+                        l.moderationReason!.isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        'ملاحظة المراجع: ${l.moderationReason}',
+                        style: const TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                    ],
                   ],
-                ]),
+                ),
               ),
               if (l.status == 'PUBLISHED')
                 TextButton.icon(
@@ -265,29 +371,36 @@ class _ManageListingScreenState extends ConsumerState<ManageListingScreen> {
                   label: const Text('عرض كما يراه الزوار'),
                 ),
               const SizedBox(height: 20),
-              Row(children: [
-                Expanded(
-                  child: Text('الصور (${l.media.length}/$_maxPhotos)', style: Theme.of(context).textTheme.titleMedium),
-                ),
-                if (canEditPhotos)
-                  OutlinedButton.icon(
-                    onPressed: () => _addPhotos(l),
-                    icon: const Icon(Icons.add_photo_alternate_outlined),
-                    label: const Text('إضافة صور'),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'الصور (${l.media.length}/$_maxPhotos)',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
                   ),
-              ]),
+                  if (canEditPhotos)
+                    OutlinedButton.icon(
+                      onPressed: () => _addPhotos(l),
+                      icon: const Icon(Icons.add_photo_alternate_outlined),
+                      label: const Text('إضافة صور'),
+                    ),
+                ],
+              ),
               const SizedBox(height: 12),
               if (l.media.isEmpty && _uploads.isEmpty)
                 Padding(
                   padding: const EdgeInsets.symmetric(vertical: 12),
-                  child: Column(children: [
-                    const ClayIllustration(StateArt.addPhotos, size: 170),
-                    const SizedBox(height: 12),
-                    const Text(
-                      'لم تضف صوراً بعد. الإعلان بالصور يحصل على اهتمام أكبر بكثير.',
-                      textAlign: TextAlign.center,
-                    ),
-                  ]),
+                  child: Column(
+                    children: [
+                      const ClayIllustration(StateArt.addPhotos, size: 170),
+                      const SizedBox(height: 12),
+                      const Text(
+                        'لم تضف صوراً بعد. الإعلان بالصور يحصل على اهتمام أكبر بكثير.',
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+                  ),
                 ),
               GridView.count(
                 crossAxisCount: 3,
@@ -298,48 +411,91 @@ class _ManageListingScreenState extends ConsumerState<ManageListingScreen> {
                 children: [
                   for (final m in l.media)
                     GestureDetector(
-                      onTap: canEditPhotos ? () => _photoActions(m, l.media.length == 1, l) : null,
-                      child: Stack(fit: StackFit.expand, children: [
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(8),
-                          child: CachedNetworkImage(
-                            imageUrl: m.thumbnailUrl,
-                            fit: BoxFit.cover,
-                            placeholder: (_, _) => ColoredBox(color: Theme.of(context).colorScheme.surfaceContainerHighest),
-                            errorWidget: (_, _, _) => const Icon(Icons.broken_image_outlined),
-                          ),
-                        ),
-                        if (m.isCover)
-                          PositionedDirectional(
-                            top: 4,
-                            start: 4,
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                              decoration: BoxDecoration(
-                                  color: Theme.of(context).colorScheme.primary, borderRadius: BorderRadius.circular(8)),
-                              child: Text('الغلاف',
-                                  style: TextStyle(color: Theme.of(context).colorScheme.onPrimary, fontSize: 11)),
+                      onTap: canEditPhotos
+                          ? () => _photoActions(m, l.media.length == 1, l)
+                          : null,
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: CachedNetworkImage(
+                              imageUrl: m.thumbnailUrl,
+                              fit: BoxFit.cover,
+                              placeholder: (_, _) => ColoredBox(
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .surfaceContainerHighest,
+                              ),
+                              errorWidget: (_, _, _) =>
+                                  const Icon(Icons.broken_image_outlined),
                             ),
                           ),
-                      ]),
+                          if (m.isCover)
+                            PositionedDirectional(
+                              top: 4,
+                              start: 4,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 6,
+                                  vertical: 2,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Theme.of(context).colorScheme.primary,
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Text(
+                                  'الغلاف',
+                                  style: TextStyle(
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .onPrimary,
+                                    fontSize: 11,
+                                  ),
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
                     ),
                   for (final u in _uploads)
                     Container(
                       decoration: BoxDecoration(
-                        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                        color: Theme.of(context)
+                            .colorScheme
+                            .surfaceContainerHighest,
                         borderRadius: BorderRadius.circular(8),
                       ),
                       padding: const EdgeInsets.all(6),
                       child: u.error == null
                           ? const Center(child: CircularProgressIndicator())
-                          : Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                              const Icon(Icons.error_outline, color: Colors.red),
-                              Text(u.error!, textAlign: TextAlign.center, style: const TextStyle(fontSize: 10), maxLines: 3, overflow: TextOverflow.ellipsis),
-                              InkWell(
-                                onTap: () => setState(() => _uploads.remove(u)),
-                                child: const Padding(padding: EdgeInsets.all(2), child: Text('إغلاق', style: TextStyle(fontSize: 11))),
-                              ),
-                            ]),
+                          : Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Icon(
+                                  Icons.error_outline,
+                                  color: Colors.red,
+                                ),
+                                Text(
+                                  u.error!,
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(fontSize: 10),
+                                  maxLines: 3,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                InkWell(
+                                  onTap: () =>
+                                      setState(() => _uploads.remove(u)),
+                                  child: const Padding(
+                                    padding: EdgeInsets.all(2),
+                                    child: Text(
+                                      'إغلاق',
+                                      style: TextStyle(fontSize: 11),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
                     ),
                 ],
               ),
@@ -351,7 +507,10 @@ class _ManageListingScreenState extends ConsumerState<ManageListingScreen> {
                   label: const Text('حذف الإعلان'),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: Theme.of(context).colorScheme.error,
-                    side: BorderSide(color: Theme.of(context).colorScheme.error.withValues(alpha: 0.6)),
+                    side: BorderSide(
+                      color: Theme.of(context).colorScheme.error
+                          .withValues(alpha: 0.6),
+                    ),
                     minimumSize: const Size.fromHeight(48),
                   ),
                 ),
@@ -366,11 +525,20 @@ class _ManageListingScreenState extends ConsumerState<ManageListingScreen> {
                       onPressed: (_working || _uploading || l.media.isEmpty)
                           ? null
                           : () async {
-                              if (await _confirm('إرسال للمراجعة', 'سيُراجَع الإعلان قبل ظهوره للجميع. هل بياناته وصوره جاهزة؟')) {
-                                if (await _run(() => repo.submit(_id)) && mounted) await showSubmittedDialog(this.context);
+                              final ok = await _confirm(
+                                'إرسال للمراجعة',
+                                'سيُراجَع الإعلان قبل ظهوره للجميع. هل بياناته وصوره جاهزة؟',
+                              );
+                              if (!ok || !mounted) return;
+                              if (await _run(() => repo.submit(_id)) && mounted) {
+                                await showSubmittedDialog(this.context);
                               }
                             },
-                      child: Text(l.media.isEmpty ? 'أضف صورة واحدة على الأقل لتتمكن من الإرسال' : 'إرسال للمراجعة'),
+                      child: Text(
+                        l.media.isEmpty
+                            ? 'أضف صورة واحدة على الأقل لتتمكن من الإرسال'
+                            : 'إرسال للمراجعة',
+                      ),
                     ),
                   ),
                 )
