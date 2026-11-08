@@ -127,9 +127,13 @@ StatusInfo statusInfo(String status) =>
     _statusInfo[status] ?? StatusInfo(status, Colors.grey, '');
 
 class UploadTicket {
-  UploadTicket({required this.uploadId, required this.url, required this.headers});
+  UploadTicket({required this.uploadId, required this.url, required this.headers, this.expiresAt});
 
   final String uploadId;
   final String url;
   final Map<String, String> headers;
+  final DateTime? expiresAt;
+
+  /// False once the signed URL is about to expire (a retry then asks for a new one).
+  bool get isUsable => expiresAt == null || DateTime.now().isBefore(expiresAt!.subtract(const Duration(seconds: 30)));
 }

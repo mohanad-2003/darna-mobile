@@ -69,6 +69,7 @@ class ListingRepository {
       uploadId: res['uploadId'] as String,
       url: res['uploadUrl'] as String,
       headers: (res['headers'] as Map).map((k, v) => MapEntry(k as String, v as String)),
+      expiresAt: DateTime.tryParse((res['expiresAt'] as String?) ?? ''),
     );
   }
 
