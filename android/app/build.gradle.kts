@@ -35,8 +35,9 @@ android {
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.example.darna"
+        // The store identity of the app: it cannot change once published on Google Play. The code
+        // package (namespace above, MainActivity) is a separate thing and may stay as it is.
+        applicationId = "com.darna.app"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion
