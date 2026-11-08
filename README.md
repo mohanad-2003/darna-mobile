@@ -46,27 +46,6 @@ A release build is refused unless all of this holds:
 Android permissions: the main manifest declares `INTERNET` and `usesCleartextTraffic="false"`;
 only the debug manifest allows plain HTTP, for the local backend.
 
-Still to set before publishing: the final `applicationId` in `android/app/build.gradle.kts`
-(still the `com.example.darna` placeholder; the build warns about it) and the iOS bundle identifier.
-
-## Layout
-
-```text
-lib/
-  app/         theme, router
-  core/        API client, auth/session, shared helpers
-  features/    auth, properties, listings, inquiries, notifications, admin, account
-test/          unit tests
-```
-
-State is managed with Riverpod, navigation with go_router. The API client refreshes the
-session automatically and retries the request once.
-
-```bash
-flutter analyze
-flutter test
-```
-
-## Notes
-
-No secrets live in this repository: the app only knows the backend's public address.
+Android `applicationId` is `com.darna.app` (`android/app/build.gradle.kts`); it cannot change once the
+app is published on Google Play. The code package (`namespace`, `MainActivity`) is still `com.example.darna`
+on purpose. Still to set before an iOS release: the bundle identifier, which is still `com.example.darna`.
