@@ -51,7 +51,7 @@ $wordData = Convert-PathToSvg $wordGeometry
 $symbolData = Convert-PathToSvg $symbolGeometry
 $wordPaths = @([regex]::Split($wordData, '(?=[Mm])') | Where-Object { $_.Trim() })
 
-foreach ($variant in @(@{ Name = 'darna_logo_master.svg'; Color = '#0F766E' }, @{ Name = 'darna_logo_dark.svg'; Color = '#FAF6F1' })) {
+foreach ($variant in @(@{ Name = 'darna_logo_master.svg'; Color = '#234457' }, @{ Name = 'darna_logo_dark.svg'; Color = '#FAF7F2' })) {
     $wordElements = ($wordPaths | ForEach-Object { '  <path fill="' + $variant.Color + '" d="' + $_.Trim() + '"/>' }) -join "`n"
     $svg = @"
 <svg xmlns="http://www.w3.org/2000/svg" width="1536" height="768" viewBox="0 0 1536 768">
@@ -67,7 +67,7 @@ $wordElements
     [IO.File]::WriteAllText((Join-Path $destination $tightName), $tight, $utf8)
 }
 
-foreach ($variant in @(@{ Name = 'darna_symbol.svg'; Color = '#0F766E' }, @{ Name = 'darna_symbol_dark.svg'; Color = '#FAF6F1' })) {
+foreach ($variant in @(@{ Name = 'darna_symbol.svg'; Color = '#234457' }, @{ Name = 'darna_symbol_dark.svg'; Color = '#FAF7F2' })) {
     $svg = '<svg xmlns="http://www.w3.org/2000/svg" width="320" height="320" viewBox="0 0 320 320"><path fill="' + $variant.Color + '" d="' + $symbolPath + '"/></svg>'
     [IO.File]::WriteAllText((Join-Path $destination $variant.Name), $svg, $utf8)
 }
@@ -77,12 +77,12 @@ $wordGeometry = [Windows.Media.Geometry]::Parse($wordData)
 $symbolGeometry = [Windows.Media.Geometry]::Parse('F0' + $symbolData)
 $proof = New-Object Windows.Media.DrawingVisual
 $dc = $proof.RenderOpen()
-$backgrounds = @('#FAF8F3', '#0F1F1D', '#121212', '#0F766E')
+$backgrounds = @('#FAF7F2', '#111923', '#121212', '#234457')
 for ($row = 0; $row -lt 4; $row++) {
     $dc.PushTransform((New-Object Windows.Media.TranslateTransform(0, ($row * 384))))
     $dc.DrawRectangle([Windows.Media.BrushConverter]::new().ConvertFromString($backgrounds[$row]), $null, (New-Object Windows.Rect(0, 0, 768, 384)))
     $dc.PushTransform((New-Object Windows.Media.ScaleTransform(0.5, 0.5)))
-    $ink = if ($row -eq 0) { '#0F766E' } else { '#FAF6F1' }
+    $ink = if ($row -eq 0) { '#234457' } else { '#FAF7F2' }
     $brush = [Windows.Media.BrushConverter]::new().ConvertFromString($ink)
     $dc.DrawGeometry($brush, $null, $wordGeometry)
     $dc.DrawGeometry($brush, $null, $symbolGeometry)

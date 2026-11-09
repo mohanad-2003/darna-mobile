@@ -1,4 +1,4 @@
-﻿param([string]$ProjectRoot = (Split-Path -Parent $PSScriptRoot))
+param([string]$ProjectRoot = (Split-Path -Parent $PSScriptRoot))
 
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName PresentationCore,WindowsBase
@@ -6,7 +6,7 @@ Add-Type -AssemblyName PresentationCore,WindowsBase
 $geometry = [Windows.Media.Geometry]::Parse($symbol.svg.path.d)
 
 # Render all platform icons from the same vector used by the app.
-function Export-Icon([string]$RelativePath, [int]$Size, [double]$MarkWidth = 0.66, [string]$Background = '#0F766E', [string]$Ink = '#FAF6F1') {
+function Export-Icon([string]$RelativePath, [int]$Size, [double]$MarkWidth = 0.66, [string]$Background = '#234457', [string]$Ink = '#FAF7F2') {
     $visual = New-Object Windows.Media.DrawingVisual
     $dc = $visual.RenderOpen()
     if ($Background) {

@@ -4,7 +4,7 @@ import '../../app/theme.dart';
 import '../../core/widgets/darna_logo.dart';
 
 // The illustrations are drawn on this cream; using it for the screen hides the image edges.
-const _ivory = Color(0xFFFAF6F1);
+const _ivory = brandIvory;
 
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key, required this.onComplete});
@@ -22,19 +22,19 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   static const _slides = [
     (
-      image: 'assets/onboarding/discover.webp',
+      image: 'assets/onboarding/discover.jpg',
       label: 'مكان جديد، بداية جديدة',
       title: 'دارك أقرب مما تتخيّل',
       description: 'اكتشف شققًا ومنازل وأراضي للبيع أو للإيجار، وابحث حسب المنطقة والسعر وما يناسبك.',
     ),
     (
-      image: 'assets/onboarding/connect.webp',
+      image: 'assets/onboarding/connect.jpg',
       label: 'خياراتك في مكان واحد',
       title: 'احفظ ما يعجبك، وتواصل',
       description: 'أضف العقارات إلى مفضلتك لتعود إليها بسهولة، وتواصل مع المعلن لمعرفة التفاصيل.',
     ),
     (
-      image: 'assets/onboarding/publish.webp',
+      image: 'assets/onboarding/publish.jpg',
       label: 'لعقارك فرصة جديدة',
       title: 'اعرض عقارك بخطوات بسيطة',
       description: 'أضف الصور والتفاصيل وحدّد الموقع، ثم أرسل إعلانك للمراجعة ليظهر للباحثين عن عقار.',
@@ -64,7 +64,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   Widget _buildLight(BuildContext context) {
     final theme = Theme.of(context);
-    final teal = theme.colorScheme.primary;
+    final primary = theme.colorScheme.primary;
     return Scaffold(
       backgroundColor: _ivory,
       body: SafeArea(
@@ -117,7 +117,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                                   slide.label,
                                   textAlign: TextAlign.center,
                                   style: theme.textTheme.labelLarge?.copyWith(
-                                    color: teal,
+                                    color: primary,
                                     letterSpacing: 0,
                                   ),
                                 ),
@@ -129,7 +129,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                                     textAlign: TextAlign.center,
                                     style: theme.textTheme.headlineMedium
                                         ?.copyWith(
-                                          color: const Color(0xFF173F3A),
+                                          color: theme.colorScheme.onSurface,
                                           fontWeight: FontWeight.w700,
                                         ),
                                   ),
@@ -139,7 +139,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                                   slide.description,
                                   textAlign: TextAlign.center,
                                   style: theme.textTheme.bodyLarge?.copyWith(
-                                    color: const Color(0xFF526761),
+                                    color: theme.colorScheme.onSurfaceVariant,
                                     height: 1.65,
                                   ),
                                 ),
@@ -168,8 +168,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                               height: 8,
                               decoration: BoxDecoration(
                                 color: index == _page
-                                    ? teal
-                                    : const Color(0xFFD2DFD9),
+                                    ? primary
+                                    : theme.colorScheme.outlineVariant,
                                 borderRadius: BorderRadius.circular(20),
                               ),
                             ),
@@ -181,7 +181,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                         width: double.infinity,
                         child: FilledButton(
                           style: FilledButton.styleFrom(
-                            backgroundColor: teal,
+                            backgroundColor: primary,
                             foregroundColor: Colors.white,
                             padding: const EdgeInsets.symmetric(
                               horizontal: 24,

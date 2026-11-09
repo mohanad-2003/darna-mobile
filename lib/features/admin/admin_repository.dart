@@ -33,6 +33,7 @@ const decisionNames = {
   'NEEDS_CHANGES': 'طلب تعديلات',
   'SUSPENDED': 'إيقاف',
   'REINSTATED': 'إعادة نشر',
+  'REMOVED': 'إزالة نهائية',
 };
 
 class ReportItem {

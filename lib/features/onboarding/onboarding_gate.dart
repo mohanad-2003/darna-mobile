@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../app/theme.dart';
 import '../../core/auth/auth_controller.dart';
 import '../auth/login_screen.dart';
 import 'onboarding_screen.dart';
@@ -79,7 +80,7 @@ class _OnboardingGateState extends ConsumerState<OnboardingGate> {
         if (start == null) {
           // Same look as the native launch screen, so there is no white flash in between.
           return Scaffold(
-            backgroundColor: Theme.of(context).colorScheme.primary,
+            backgroundColor: brandPrimary,
             body: Center(
               child: SvgPicture.asset(
                 'assets/branding/darna_symbol_dark.svg',

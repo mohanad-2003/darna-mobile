@@ -11,7 +11,7 @@ enum StateArt {
 
   const StateArt(this.file);
   final String file;
-  String get asset => 'assets/illustrations/$file.webp';
+  String get asset => 'assets/illustrations/$file.png';
 }
 
 class ClayIllustration extends StatelessWidget {
@@ -22,7 +22,7 @@ class ClayIllustration extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // The art has a transparent background (see tool/export_assets.cjs), so it sits directly
+    // The art has a transparent background (see tool/export_clay_illustrations.ps1), so it sits directly
     // on the screen with no frame, in light and dark themes alike.
     return Image.asset(art.asset, width: size, height: size, fit: BoxFit.contain, excludeFromSemantics: true);
   }

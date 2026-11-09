@@ -40,8 +40,8 @@ void main() {
         theme: ThemeData(
           fontFamily: 'Tajawal',
           colorScheme: ColorScheme.fromSeed(
-            seedColor: const Color(0xFF0F766E),
-            primary: const Color(0xFF0F766E),
+            seedColor: const Color(0xFF234457),
+            primary: const Color(0xFF234457),
           ),
         ),
         home: Directionality(

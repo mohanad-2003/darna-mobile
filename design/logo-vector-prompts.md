@@ -1,9 +1,9 @@
-﻿# Darna brand assets
+# Darna brand assets
 
 The identity pairs an outlined Arabic Tajawal Bold wordmark with a geometric roof
 and architectural entrance. The symbol sits on the right of the Arabic wordmark.
 
-- Teal: `#0F766E`; ivory: `#FAF6F1`.
+- Deep blue: `#234457`; ivory: `#FAF7F2`.
 - All SVG artwork consists of filled paths, with transparent negative space.
 - `darna_logo_tight.svg` and `darna_logo_tight_dark.svg` are the in-app lockups.
 - `darna_symbol.svg` and `darna_symbol_dark.svg` are standalone symbol masters.

@@ -66,7 +66,7 @@ void main() {
     expect(find.byType(Skeleton), findsWidgets);
   });
 
-  testWidgets('logo uses the ivory artwork on dark themes and teal on light ones', (tester) async {
+  testWidgets('logo uses the ivory artwork on dark themes and blue on light ones', (tester) async {
     String assetShown() {
       final picture = tester.widget<SvgPicture>(find.byType(SvgPicture));
       return (picture.bytesLoader as SvgAssetLoader).assetName;

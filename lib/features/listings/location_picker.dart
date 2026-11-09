@@ -9,7 +9,7 @@ class PickedLocation {
 
   final String id;
   final String name;
-}-
+}
 
 /// Two-level picker: governorate, then city. Returns the chosen place with its full name.
 Future<PickedLocation?> pickLocation(BuildContext context) => showModalBottomSheet<PickedLocation>(

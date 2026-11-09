@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Adaptive launcher icon (Android 8+). Older versions use the ic_darna.png files. -->
 <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
-    <background android:drawable="@color/darna_teal" />
+    <background android:drawable="@color/darna_primary" />
     <foreground android:drawable="@mipmap/ic_darna_foreground" />
     <!-- Android 13 themed icons tint this layer with the wallpaper colours. -->
     <monochrome android:drawable="@mipmap/ic_darna_foreground" />

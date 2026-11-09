@@ -44,8 +44,8 @@ void main() {
   });
 
   group('themes', () {
-    test('light keeps the exact brand teal; dark is a real dark scheme', () {
-      expect(AppTheme.light().colorScheme.primary, brandTeal);
+    test('light keeps the exact brand blue; dark is a real dark scheme', () {
+      expect(AppTheme.light().colorScheme.primary, brandPrimary);
       final dark = AppTheme.dark().colorScheme;
       expect(dark.brightness, Brightness.dark);
       // Readable on dark surfaces: the primary must be lighter than the surface.
@@ -54,15 +54,15 @@ void main() {
   });
 
   group('empty-state illustrations in dark mode', () {
-    test('pale fills become dark, teal is lifted, strokes on teal are untouched', () {
+    test('pale fills become dark, blue is lifted, ivory strokes stay readable', () {
       const map = DarkSvgColors();
       Color sub(String attr, int argb) => map.substitute(null, 'path', attr, Color(argb));
 
-      expect(sub('fill', 0xFFF0F6F3), isNot(const Color(0xFFF0F6F3)));
-      expect(sub('fill', 0xFFF0F6F3).computeLuminance(), lessThan(0.05));
-      expect(sub('fill', 0xFF0F766E), const Color(0xFF2A9D8F));
-      expect(sub('stroke', 0xFFFAF6F1), const Color(0xFFFAF6F1)); // cream line on a teal shape
-      expect(sub('fill', 0xFFFAF6F1), isNot(const Color(0xFFFAF6F1))); // cream paper is dimmed
+      expect(sub('fill', 0xFFF1F3F5), isNot(const Color(0xFFF1F3F5)));
+      expect(sub('fill', 0xFFF1F3F5).computeLuminance(), lessThan(0.05));
+      expect(sub('fill', 0xFF234457), const Color(0xFF4F748C));
+      expect(sub('stroke', 0xFFFAF7F2), const Color(0xFF1B2735)); // dark line on a light blue shape
+      expect(sub('fill', 0xFFFAF7F2), isNot(const Color(0xFFFAF7F2))); // cream paper is dimmed
       expect(sub('fill', 0xFF123456), const Color(0xFF123456)); // unknown colours pass through
     });
 

@@ -1,6 +1,6 @@
 // Rebuilds the shipped brand assets from the full-size originals in design/source.
 //   cd mobile && npm i --no-save sharp && node tool/export_assets.cjs
-// Produces: light WebP onboarding art and logo, the white house mark (splash), and the
+// Produces: light JPEG onboarding art, PNG illustrations and logo, the ivory house mark (splash), and the
 // Android adaptive-icon foreground and splash images at every density.
 const fs = require('fs');
 const path = require('path');
@@ -18,21 +18,23 @@ const DENSITIES = { mdpi: 1, hdpi: 1.5, xhdpi: 2, xxhdpi: 3, xxxhdpi: 4 };
 async function onboarding() {
   for (const name of ['discover', 'connect', 'publish']) {
     // Shown at about 360 dp tall, so 900 px covers 2.5x screens.
-    await sharp(src(`${name}.png`)).resize(900).webp({ quality: 82, effort: 6 }).toFile(out(`assets/onboarding/${name}.webp`));
+    await sharp(src(`${name}.png`)).resize(900).jpeg({ quality: 88 }).toFile(out(`assets/onboarding/${name}.jpg`));
   }
 }
 
 // The vector masters keep generous clear space. For use inside the app, write copies whose
 // viewBox hugs the artwork (plus a small margin), so a given height shows a bigger logo.
-// Screen illustrations (login, states): 800 px is plenty for the 170-260 dp they are shown at.
+// Screen illustrations (login, states): 480 px keeps each transparent PNG below 200 KB.
 // The originals are painted on a flat cream square. On screen they should sit directly on the
 // page, so the cream that touches the border is made transparent (see cutCreamBackground).
 async function illustrations() {
   const dir = src('illustrations');
   if (!fs.existsSync(dir)) return;
   for (const f of fs.readdirSync(dir).filter((n) => n.endsWith('.png'))) {
-    const cut = await cutCreamBackground(path.join(dir, f));
-    await cut.resize(800).webp({ quality: 82, alphaQuality: 90, effort: 6 }).toFile(out('assets/illustrations/' + f.replace('.png', '.webp')));
+    const file = path.join(dir, f);
+    const meta = await sharp(file).metadata();
+    const cut = meta.hasAlpha ? sharp(file) : await cutCreamBackground(file);
+    await cut.resize(480).png().toFile(out('assets/illustrations/' + f));
   }
 }
 

@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Brand teal behind the adaptive icon and the launch screen. -->
-    <color name="darna_teal">#08706C</color>
+    <!-- Brand deep blue behind the adaptive icon and the launch screen. -->
+    <color name="darna_primary">#234457</color>
 </resources>
