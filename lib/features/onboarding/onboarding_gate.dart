@@ -1,52 +1,82 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../core/auth/auth_controller.dart';
+import '../auth/login_screen.dart';
 import 'onboarding_screen.dart';
 
-/// Introduces the browsing shell without intercepting property or login links.
-class OnboardingGate extends StatefulWidget {
+const _onboardingKey = 'darna_onboarding_v1_completed';
+
+/// Decides what the first screen is when the app opens:
+///
+/// * first launch after install: the onboarding slides, then the login screen;
+/// * later launches: the launch splash, then the login screen when nobody is signed in,
+///   or the app itself when a session exists;
+/// * "تصفح كزائر" on the login screen lets people browse without an account, for this
+///   launch only.
+///
+/// Links to a property or to /login do not go through this gate.
+class OnboardingGate extends ConsumerStatefulWidget {
   const OnboardingGate({super.key, required this.child});
 
   final Widget child;
 
+  /// True once this launch has got past the start screens; the gate then stays out of the way
+  /// (for example after sign-out, the user stays where they are).
+  static bool _entered = false;
+
+  @visibleForTesting
+  static void resetForTest() => _entered = false;
+
   @override
-  State<OnboardingGate> createState() => _OnboardingGateState();
+  ConsumerState<OnboardingGate> createState() => _OnboardingGateState();
 }
 
-class _OnboardingGateState extends State<OnboardingGate> {
-  static const _storage = FlutterSecureStorage();
-  static const _key = 'darna_onboarding_v1_completed';
-  static bool _completedThisSession = false;
-  late final Future<bool> _completed = _readCompleted();
+class _Start {
+  const _Start({required this.onboarded, required this.hasSession});
 
-  Future<bool> _readCompleted() async {
-    if (_completedThisSession) return true;
+  final bool onboarded;
+  final bool hasSession;
+}
+
+class _OnboardingGateState extends ConsumerState<OnboardingGate> {
+  // Not secure storage: the keystore/keychain can outlive an uninstall, and a reinstall
+  // must show the slides again. A plain preference goes away with the app's data.
+  late final Future<_Start> _start = _read();
+  bool _onboardedNow = false;
+
+  Future<_Start> _read() async {
+    var onboarded = true; // Browsing must stay available when storage fails.
     try {
-      return await _storage.read(key: _key) == 'true';
-    } catch (_) {
-      // Browsing must remain available when device storage is unavailable.
-      return true;
-    }
+      onboarded = (await SharedPreferences.getInstance()).getBool(_onboardingKey) ?? false;
+    } catch (_) {}
+    var hasSession = false;
+    try {
+      hasSession = await ref.read(tokenStoreProvider).refreshToken != null;
+    } catch (_) {}
+    return _Start(onboarded: onboarded, hasSession: hasSession);
   }
 
-  Future<void> _finish() async {
-    _completedThisSession = true;
+  Future<void> _finishOnboarding() async {
+    _onboardedNow = true; // Still applies this session if the write below fails.
     try {
-      await _storage.write(key: _key, value: 'true');
-    } catch (_) {
-      // The in-memory flag still prevents repeats during this session.
-    }
+      await (await SharedPreferences.getInstance()).setBool(_onboardingKey, true);
+    } catch (_) {}
     if (mounted) setState(() {});
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_completedThisSession) return widget.child;
-    return FutureBuilder<bool>(
-      future: _completed,
+    final signedIn = ref.watch(authControllerProvider).value != null;
+    if (OnboardingGate._entered) return widget.child;
+
+    return FutureBuilder<_Start>(
+      future: _start,
       builder: (context, snapshot) {
-        if (!snapshot.hasData) {
+        final start = snapshot.data;
+        if (start == null) {
           // Same look as the native launch screen, so there is no white flash in between.
           return Scaffold(
             backgroundColor: Theme.of(context).colorScheme.primary,
@@ -59,9 +89,17 @@ class _OnboardingGateState extends State<OnboardingGate> {
             ),
           );
         }
-        return snapshot.data!
-            ? widget.child
-            : OnboardingScreen(onComplete: _finish);
+        if (!start.onboarded && !_onboardedNow) {
+          return OnboardingScreen(onComplete: _finishOnboarding);
+        }
+        // Signing in (from the login screen here, or anywhere else) ends the start flow.
+        // This comes after the slides on purpose: a reinstall can keep an old session in the
+        // keychain, and a fresh install must still show the slides.
+        if (start.hasSession || signedIn) {
+          OnboardingGate._entered = true;
+          return widget.child;
+        }
+        return LoginScreen(onSkip: () => setState(() => OnboardingGate._entered = true));
       },
     );
   }

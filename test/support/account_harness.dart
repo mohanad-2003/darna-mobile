@@ -134,6 +134,7 @@ Widget testApp({
   String screenPath = '/screen',
   GlobalKey<NavigatorState>? navigatorKey,
   List<RouteBase> extraRoutes = const [],
+  Widget? home,
 }) {
   Widget placeholder(String name) => Scaffold(body: Center(child: Text(name)));
   final router = GoRouter(
@@ -141,11 +142,13 @@ Widget testApp({
     routes: [
       GoRoute(
         path: '/',
-        builder: (context, _) => Scaffold(
-          body: Center(
-            child: TextButton(onPressed: () => context.push(screenPath), child: const Text('home')),
-          ),
-        ),
+        builder: (context, _) =>
+            home ??
+            Scaffold(
+              body: Center(
+                child: TextButton(onPressed: () => context.push(screenPath), child: const Text('home')),
+              ),
+            ),
       ),
       GoRoute(path: screenPath, builder: (_, _) => screen),
       GoRoute(path: '/login', builder: (_, _) => placeholder('login-page')),

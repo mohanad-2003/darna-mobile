@@ -31,7 +31,10 @@ String? normalizePhone(String input) {
 }
 
 class LoginScreen extends ConsumerStatefulWidget {
-  const LoginScreen({super.key});
+  const LoginScreen({super.key, this.onSkip});
+
+  /// Set when this is the first screen of the app: offers to continue without an account.
+  final VoidCallback? onSkip;
 
   @override
   ConsumerState<LoginScreen> createState() => _LoginScreenState();
@@ -73,7 +76,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Scaffold(
-      appBar: AppBar(),
+      appBar: AppBar(
+        actions: [
+          if (widget.onSkip != null)
+            Padding(
+              padding: const EdgeInsetsDirectional.only(end: 8),
+              child: TextButton(onPressed: widget.onSkip, child: const Text('تصفح كزائر')),
+            ),
+        ],
+      ),
       body: SafeArea(
         // Scrolls so the keyboard never hides the button on small screens.
         child: SingleChildScrollView(
