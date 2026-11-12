@@ -120,6 +120,22 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   ),
                 Padding(
                   padding: const EdgeInsetsDirectional.only(start: 8),
+                  child: PopupMenuButton<String>(
+                    tooltip: 'ترتيب النتائج',
+                    initialValue: filters.sort,
+                    onSelected: (v) => controller.setFilters(filters.copyWith(sort: v)),
+                    itemBuilder: (_) => [
+                      for (final e in sortNames.entries)
+                        PopupMenuItem(value: e.key, child: Text(e.value)),
+                    ],
+                    child: Chip(
+                      avatar: const Icon(Icons.swap_vert, size: 18),
+                      label: Text(sortNames[filters.sort] ?? 'ترتيب'),
+                    ),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsetsDirectional.only(start: 8),
                   child: ActionChip(
                     avatar: Badge(
                       isLabelVisible: filters.activeCount > 0,
@@ -200,7 +216,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         itemCount: state.items.length + 1,
         itemBuilder: (context, i) {
           if (i < state.items.length) {
-            return PropertyCardTile(property: state.items[i]);
+            return PropertyCardTile(property: state.items[i], heroScope: 'home');
           }
           if (state.loading) {
             return const Padding(

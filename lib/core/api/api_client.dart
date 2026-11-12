@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 
 import '../auth/token_store.dart';
 import '../config.dart';
@@ -17,24 +20,65 @@ bool isRejectedAccessToken(DioException error) {
   return code == null || code == 'UNAUTHORIZED';
 }
 
+const _maxRetries = 2;
+
+/// Only reads are repeated: repeating a POST could send an inquiry or a report twice.
+/// 502/503/504 are what the host answers while a sleeping server is starting.
+bool _shouldRetry(DioException e) {
+  final req = e.requestOptions;
+  if (req.method != 'GET') return false;
+  if (((req.extra['attempt'] as int?) ?? 0) >= _maxRetries) return false;
+  final status = e.response?.statusCode;
+  return e.type == DioExceptionType.connectionTimeout ||
+      e.type == DioExceptionType.receiveTimeout ||
+      e.type == DioExceptionType.connectionError ||
+      status == 502 ||
+      status == 503 ||
+      status == 504;
+}
+
 /// Thin JSON client over Dio. Adds the access token, and when the backend answers 401
 /// it rotates the refresh token once and retries the request.
 class ApiClient {
   ApiClient(this._tokens, {required this.onSessionExpired})
       : _dio = Dio(BaseOptions(
           baseUrl: AppConfig.apiBaseUrl,
-          connectTimeout: const Duration(seconds: 15),
-          receiveTimeout: const Duration(seconds: 30),
+          connectTimeout: const Duration(seconds: 20),
+          // A sleeping server can take about a minute to answer the first request.
+          receiveTimeout: const Duration(seconds: 75),
           headers: {'Accept': 'application/json'},
         )) {
     _dio.interceptors.add(InterceptorsWrapper(
       onRequest: (options, handler) async {
         final token = await _tokens.accessToken;
         if (token != null) options.headers['Authorization'] = 'Bearer $token';
+        options.extra['slowTimer'] = Timer(const Duration(seconds: 4), () {
+          options.extra['slow'] = true;
+          _slowCount++;
+          isWaking.value = true;
+        });
         handler.next(options);
+      },
+      onResponse: (response, handler) {
+        _endSlow(response.requestOptions);
+        handler.next(response);
       },
       onError: (error, handler) async {
         final req = error.requestOptions;
+        _endSlow(req);
+
+        if (_shouldRetry(error)) {
+          final attempt = ((req.extra['attempt'] as int?) ?? 0) + 1;
+          req.extra['attempt'] = attempt;
+          await Future<void>.delayed(Duration(seconds: attempt * 2));
+          try {
+            handler.resolve(await _dio.fetch(req));
+          } on DioException catch (e) {
+            handler.next(e);
+          }
+          return;
+        }
+
         final isAuthCall = req.path.startsWith('/auth/');
         if (isRejectedAccessToken(error) &&
             !isAuthCall &&
@@ -59,6 +103,20 @@ class ApiClient {
   final Future<void> Function() onSessionExpired;
   final Dio _dio;
 
+  /// True while at least one request has been waiting for more than a few seconds.
+  /// The UI shows a "preparing the service" notice while this is set.
+  final ValueNotifier<bool> isWaking = ValueNotifier(false);
+  int _slowCount = 0;
+
+  void _endSlow(RequestOptions o) {
+    final timer = o.extra.remove('slowTimer');
+    if (timer is Timer) timer.cancel();
+    if (o.extra.remove('slow') == true && --_slowCount <= 0) {
+      _slowCount = 0;
+      isWaking.value = false;
+    }
+  }
+
   // Concurrent 401s must share one refresh: the backend treats a reused refresh
   // token as theft and revokes the whole session.
   Future<bool>? _refreshing;
@@ -72,8 +130,8 @@ class ApiClient {
       // A bare Dio: this call must not go through the interceptor above.
       final res = await Dio(BaseOptions(
         baseUrl: AppConfig.apiBaseUrl,
-        connectTimeout: const Duration(seconds: 15),
-        receiveTimeout: const Duration(seconds: 30),
+        connectTimeout: const Duration(seconds: 20),
+        receiveTimeout: const Duration(seconds: 75),
       )).post<Json>('/auth/refresh', data: {'refreshToken': refresh});
       final body = res.data!;
       await _tokens.save(

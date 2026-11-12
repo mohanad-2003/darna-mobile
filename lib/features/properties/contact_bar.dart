@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -125,6 +126,7 @@ class ContactBar extends ConsumerWidget {
     if (message == null) return;
     try {
       await ref.read(propertyRepositoryProvider).sendInquiry(detail.card.id, message);
+      HapticFeedback.mediumImpact();
       messenger.showSnackBar(const SnackBar(content: Text('تم إرسال استفسارك')));
     } on ApiException catch (e) {
       messenger.showSnackBar(SnackBar(content: Text(e.message)));

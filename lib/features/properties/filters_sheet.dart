@@ -5,7 +5,7 @@ import 'format.dart';
 import 'property_repository.dart';
 
 const _currencies = {'ILS': 'شيكل ₪', 'USD': r'دولار $', 'JOD': 'دينار'};
-const _sorts = {'newest': 'الأحدث', 'price_asc': 'الأقل سعراً', 'price_desc': 'الأعلى سعراً'};
+const sortNames = {'newest': 'الأحدث', 'price_asc': 'الأقل سعراً', 'price_desc': 'الأعلى سعراً'};
 
 /// Filter sheet: property types, price range, rooms and sort. Returns the new filters
 /// when the user applies them, or null if the sheet is dismissed.
@@ -118,7 +118,7 @@ class _FiltersSheetState extends State<_FiltersSheet> {
             Text('الترتيب', style: theme.textTheme.titleMedium),
             const SizedBox(height: 8),
             Wrap(spacing: 8, children: [
-              for (final e in _sorts.entries)
+              for (final e in sortNames.entries)
                 ChoiceChip(label: Text(e.value), selected: _sort == e.key, onSelected: (_) => setState(() => _sort = e.key)),
             ]),
             if (_sort != 'newest')

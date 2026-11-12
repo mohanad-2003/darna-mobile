@@ -7,6 +7,8 @@ import 'package:darna/app/theme.dart';
 import 'package:darna/core/widgets/darna_logo.dart';
 import 'package:darna/core/widgets/empty_state.dart';
 import 'package:darna/features/onboarding/onboarding_screen.dart';
+import 'package:darna/features/auth/login_screen.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
@@ -52,6 +54,7 @@ void main() {
     }
 
     await capture('palette-onboarding', AppTheme.light(), OnboardingScreen(onComplete: () async {}));
+    await capture('palette-login', AppTheme.light(), const ProviderScope(child: LoginScreen()));
     for (final dark in [false, true]) {
       await capture('palette-${dark ? 'dark' : 'light'}', dark ? AppTheme.dark() : AppTheme.light(), Scaffold(
         appBar: AppBar(title: const DarnaLogo(height: 34)),

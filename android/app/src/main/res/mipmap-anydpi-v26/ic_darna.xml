@@ -4,5 +4,5 @@
     <background android:drawable="@color/darna_primary" />
     <foreground android:drawable="@mipmap/ic_darna_foreground" />
     <!-- Android 13 themed icons tint this layer with the wallpaper colours. -->
-    <monochrome android:drawable="@mipmap/ic_darna_foreground" />
+    <monochrome android:drawable="@mipmap/ic_darna_monochrome" />
 </adaptive-icon>

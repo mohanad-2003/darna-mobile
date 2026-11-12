@@ -1,5 +1,6 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -9,15 +10,20 @@ import 'listings_controller.dart';
 import 'models.dart';
 
 class PropertyCardTile extends ConsumerWidget {
-  const PropertyCardTile({super.key, required this.property});
+  const PropertyCardTile({super.key, required this.property, this.heroScope = 'list'});
 
   final PropertyCard property;
+
+  /// Makes the photo's Hero tag unique per list: the home and favorites tabs stay alive
+  /// together, and the same listing can appear in both.
+  final String heroScope;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     final p = property;
+    final heroTag = '$heroScope-photo-${p.id}';
     final isFavorite = ref.watch(favoriteOverridesProvider.select((m) => m[p.id])) ?? p.isFavorite;
 
     return Card(
@@ -25,7 +31,10 @@ class PropertyCardTile extends ConsumerWidget {
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
       child: InkWell(
-        onTap: () => context.push('/property/${p.id}'),
+        onTap: () => context.push(
+          '/property/${p.id}',
+          extra: <String, String?>{'tag': heroTag, 'url': p.coverThumbnailUrl},
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -34,15 +43,18 @@ class PropertyCardTile extends ConsumerWidget {
               child: Stack(
                 fit: StackFit.expand,
                 children: [
-                  p.coverThumbnailUrl == null
-                      ? const _ImagePlaceholder()
-                      : CachedNetworkImage(
-                          imageUrl: p.coverThumbnailUrl!,
-                          fit: BoxFit.cover,
-                          fadeInDuration: const Duration(milliseconds: 200),
-                          placeholder: (_, _) => const _ImagePlaceholder(),
-                          errorWidget: (_, _, _) => const _ImagePlaceholder(),
-                        ),
+                  Hero(
+                    tag: heroTag,
+                    child: p.coverThumbnailUrl == null
+                        ? const _ImagePlaceholder()
+                        : CachedNetworkImage(
+                            imageUrl: p.coverThumbnailUrl!,
+                            fit: BoxFit.cover,
+                            fadeInDuration: const Duration(milliseconds: 200),
+                            placeholder: (_, _) => const _ImagePlaceholder(),
+                            errorWidget: (_, _, _) => const _ImagePlaceholder(),
+                          ),
+                  ),
                   // Darkens the bottom so the price stays readable on any photo.
                   const Positioned.fill(
                     child: DecoratedBox(
@@ -162,6 +174,7 @@ Future<void> toggleFavorite(BuildContext context, WidgetRef ref, String id, bool
     context.push('/login');
     return;
   }
+  HapticFeedback.lightImpact();
   final error = await ref.read(favoriteOverridesProvider.notifier).toggle(id, current: current);
   if (error != null) messenger.showSnackBar(SnackBar(content: Text(error)));
 }

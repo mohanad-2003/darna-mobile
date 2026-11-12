@@ -39,6 +39,9 @@ class FakeApi implements ApiClient {
   final calls = <String>[];
   final bodies = <Object?>[];
 
+  @override
+  final ValueNotifier<bool> isWaking = ValueNotifier(false);
+
   void on(String method, String path, Handler handler) => _handlers['$method $path'] = handler;
 
   int count(String method, String path) => calls.where((c) => c == '$method $path').length;

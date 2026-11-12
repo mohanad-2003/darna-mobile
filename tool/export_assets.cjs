@@ -128,9 +128,9 @@ async function androidAndMark() {
   await (await mark(house, 512, 400)).webp({ quality: 95, alphaQuality: 100 }).toFile(out('assets/branding/darna_mark.webp'));
 
   for (const [bucket, scale] of Object.entries(DENSITIES)) {
-    // Adaptive icon layers are 108 dp; only the central 66 dp is guaranteed visible, so
-    // the house is 52 dp tall. The same layer doubles as the Android 13 themed (monochrome) icon.
-    await (await mark(house, Math.round(108 * scale), 52 * scale)).toFile(res(`mipmap-${bucket}/ic_darna_foreground.png`));
+    // Android 13 themed icons use the simple vector mark. The full-color launcher
+    // foreground is exported separately by export_brand_icons.ps1 from the 3D artwork.
+    await (await mark(house, Math.round(108 * scale), 52 * scale)).toFile(res(`mipmap-${bucket}/ic_darna_monochrome.png`));
     // Pre-Android 12 launch screen: 128 dp square with an 88 dp house.
     await (await mark(house, Math.round(128 * scale), 88 * scale)).toFile(res(`mipmap-${bucket}/ic_darna_splash.png`));
   }

@@ -51,8 +51,15 @@ final appRouter = GoRouter(
     ),
     GoRoute(
       path: '/property/:id',
-      builder: (_, state) =>
-          PropertyDetailScreen(propertyId: state.pathParameters['id']!),
+      builder: (_, state) {
+        final extra = state.extra;
+        final hero = extra is Map ? extra.cast<String, String?>() : null;
+        return PropertyDetailScreen(
+          propertyId: state.pathParameters['id']!,
+          heroTag: hero?['tag'],
+          heroImage: hero?['url'],
+        );
+      },
     ),
     GoRoute(path: '/account/profile', builder: (_, _) => const ProfileEditScreen()),
     GoRoute(path: '/account/phone', builder: (_, _) => const PhoneChangeScreen()),

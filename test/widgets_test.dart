@@ -5,7 +5,7 @@ import 'package:darna/features/properties/models.dart';
 import 'package:darna/features/properties/property_card.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_svg/flutter_svg.dart';
+import 'package:darna/app/theme.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 // The real controller reads the device keystore; tests browse as an anonymous visitor.
@@ -66,11 +66,8 @@ void main() {
     expect(find.byType(Skeleton), findsWidgets);
   });
 
-  testWidgets('logo uses the ivory artwork on dark themes and blue on light ones', (tester) async {
-    String assetShown() {
-      final picture = tester.widget<SvgPicture>(find.byType(SvgPicture));
-      return (picture.bytesLoader as SvgAssetLoader).assetName;
-    }
+  testWidgets('logo shows the 3D house with readable text on light and dark backgrounds', (tester) async {
+    Color? wordmarkColor() => tester.widget<Text>(find.text('دارنا')).style?.color;
 
     Future<void> show(ThemeData theme, {bool? onLight}) async {
       await tester.pumpWidget(MaterialApp(theme: theme, home: Scaffold(body: DarnaLogo(onLight: onLight))));
@@ -78,11 +75,13 @@ void main() {
     }
 
     await show(ThemeData(brightness: Brightness.light));
-    expect(assetShown(), 'assets/branding/darna_logo_tight.svg');
+    expect(wordmarkColor(), brandPrimary);
+    final house = tester.widget<Image>(find.byType(Image));
+    expect((house.image as AssetImage).assetName, 'assets/branding/darna_house_mark.png');
     await show(ThemeData(brightness: Brightness.dark));
-    expect(assetShown(), 'assets/branding/darna_logo_tight_dark.svg');
+    expect(wordmarkColor(), brandIvory);
     // a fixed light background wins over the theme
     await show(ThemeData(brightness: Brightness.dark), onLight: true);
-    expect(assetShown(), 'assets/branding/darna_logo_tight.svg');
+    expect(wordmarkColor(), brandPrimary);
   });
 }

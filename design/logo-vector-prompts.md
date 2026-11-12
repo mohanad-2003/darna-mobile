@@ -17,9 +17,11 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tool/export_brand_icons.ps1
 ```
 
 The first script outlines the bundled Arabic font and exports SVGs and the proof.
-The second renders Android launcher/adaptive/splash assets, iOS app icons and web
-icons directly from the symbol SVG. Android adaptive icons keep the complete mark
-inside the central safe area; iOS app icons are opaque.
+The second renders the full-color Android/iOS/PWA launcher icons from
+`design/source/darna_launcher_house.png`, a transparent 3D limestone house.
+It uses the symbol SVG for splash and Android monochrome icons. Android adaptive
+icons keep the house inside the central safe area; iOS app icons are opaque.
+PWA maskable icons have separate files with additional safe-area padding.
 
 `tool/export_assets.cjs` also reads the symbol SVG when rebuilding raster splash
 assets. The in-app loading screen uses the dark symbol SVG directly.

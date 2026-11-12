@@ -57,7 +57,11 @@ String _fingerprint(Uint8List b) {
 
 /// One listing from its owner's side: status, photos, and the actions that apply.
 class ManageListingScreen extends ConsumerStatefulWidget {
-  const ManageListingScreen({super.key, required this.propertyId, @visibleForTesting this.picker});
+  const ManageListingScreen({
+    super.key,
+    required this.propertyId,
+    @visibleForTesting this.picker,
+  });
 
   final String propertyId;
 
@@ -121,7 +125,13 @@ class _ManageListingScreenState extends ConsumerState<ManageListingScreen> {
       if (photoPickerCanLoseData) {
         final accountId = await _currentAccountId();
         if (accountId != null) {
-          await _store.savePendingPick(PendingPick(accountId: accountId, propertyId: _id, at: DateTime.now()));
+          await _store.savePendingPick(
+            PendingPick(
+              accountId: accountId,
+              propertyId: _id,
+              at: DateTime.now(),
+            ),
+          );
         }
       }
       picked = await _picker.pickMultiImage(
@@ -137,7 +147,9 @@ class _ManageListingScreenState extends ConsumerState<ManageListingScreen> {
       return;
     } finally {
       _picking = false;
-      unawaited(_store.clearPendingPick()); // the picker came back: nothing was lost
+      unawaited(
+        _store.clearPendingPick(),
+      ); // the picker came back: nothing was lost
     }
     if (picked.isEmpty || !mounted) return;
     _enqueue(picked);
@@ -159,12 +171,16 @@ class _ManageListingScreenState extends ConsumerState<ManageListingScreen> {
   Future<void> _recoverLostPick() async {
     if (!photoPickerCanLoseData) return;
     final pending = await _store.loadPendingPick();
-    if (pending == null || pending.propertyId != _id) return; // none, or another listing's
+    if (pending == null || pending.propertyId != _id) {
+      return; // none, or another listing's
+    }
     await _store.clearPendingPick(); // consumed, whatever happens next
     if (!mounted || pending.isStale()) return;
 
     final accountId = await _currentAccountId();
-    if (!mounted || accountId != pending.accountId) return; // another account must not inherit these
+    if (!mounted || accountId != pending.accountId) {
+      return; // another account must not inherit these
+    }
 
     final LostDataResponse response;
     try {

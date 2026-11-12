@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_svg/flutter_svg.dart';
+import '../../app/theme.dart';
 
-/// The Darna logo (vector). Picks the deep blue version on light backgrounds and the ivory version
-/// on dark ones. Pass [onLight] when the background is fixed and does not follow the theme.
+/// The 3D house and Darna wordmark, with text adapted to the background.
+/// Pass [onLight] when the background is fixed and does not follow the theme.
 class DarnaLogo extends StatelessWidget {
   const DarnaLogo({super.key, this.height = 40, this.onLight});
 
@@ -14,10 +14,38 @@ class DarnaLogo extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final light = onLight ?? Theme.of(context).brightness == Brightness.light;
-    return SvgPicture.asset(
-      light ? 'assets/branding/darna_logo_tight.svg' : 'assets/branding/darna_logo_tight_dark.svg',
-      height: height,
-      semanticsLabel: 'دارنا',
+    return Semantics(
+      label: 'دارنا',
+      image: true,
+      excludeSemantics: true,
+      child: SizedBox(
+        height: height,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          textDirection: TextDirection.rtl,
+          children: [
+            Image.asset(
+              'assets/branding/darna_house_mark.png',
+              width: height,
+              height: height,
+              fit: BoxFit.contain,
+              filterQuality: FilterQuality.medium,
+            ),
+            SizedBox(width: height * .16),
+            Text(
+              'دارنا',
+              textScaler: TextScaler.noScaling,
+              style: TextStyle(
+                fontFamily: 'Tajawal',
+                fontSize: height * .82,
+                height: 1,
+                fontWeight: FontWeight.w700,
+                color: light ? brandPrimary : brandIvory,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

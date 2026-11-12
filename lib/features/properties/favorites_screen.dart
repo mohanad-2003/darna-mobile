@@ -64,7 +64,7 @@ class FavoritesScreen extends ConsumerWidget {
             onRefresh: () async => ref.refresh(_favoritesProvider.future),
             child: ListView.builder(
               itemCount: items.length,
-              itemBuilder: (_, i) => PropertyCardTile(property: items[i]),
+              itemBuilder: (_, i) => PropertyCardTile(property: items[i], heroScope: 'favorites'),
             ),
           );
         },

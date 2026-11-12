@@ -14,6 +14,7 @@ import 'listings_controller.dart';
 import 'models.dart';
 import 'property_card.dart';
 import 'property_repository.dart';
+import 'share_listing.dart';
 
 final propertyDetailProvider = FutureProvider.autoDispose.family<PropertyDetail, String>(
     (ref, id) => ref.watch(propertyRepositoryProvider).detail(id));
@@ -21,15 +22,35 @@ final propertyDetailProvider = FutureProvider.autoDispose.family<PropertyDetail,
 const _expandedHeight = 340.0;
 
 class PropertyDetailScreen extends ConsumerWidget {
-  const PropertyDetailScreen({super.key, required this.propertyId});
+  const PropertyDetailScreen({super.key, required this.propertyId, this.heroTag, this.heroImage});
 
   final String propertyId;
+  final String? heroTag;
+  final String? heroImage;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final detail = ref.watch(propertyDetailProvider(propertyId));
     return detail.when(
-      loading: () => Scaffold(appBar: AppBar(), body: const PropertyDetailSkeleton()),
+      // While the listing loads, the photo already on screen keeps flying in from the list.
+      loading: () => Scaffold(
+        appBar: heroTag == null ? AppBar() : null,
+        body: heroTag == null
+            ? const PropertyDetailSkeleton()
+            : Column(children: [
+                SizedBox(
+                  height: _expandedHeight,
+                  width: double.infinity,
+                  child: Hero(
+                    tag: heroTag!,
+                    child: heroImage == null
+                        ? const SizedBox()
+                        : CachedNetworkImage(imageUrl: heroImage!, fit: BoxFit.cover),
+                  ),
+                ),
+                const Expanded(child: PropertyDetailSkeleton()),
+              ]),
+      ),
       error: (e, _) => Scaffold(
         appBar: AppBar(),
         body: ErrorStateView.from(
@@ -39,7 +60,7 @@ class PropertyDetailScreen extends ConsumerWidget {
         ),
       ),
       data: (d) => Scaffold(
-        body: _DetailView(detail: d),
+        body: _DetailView(detail: d, heroTag: heroTag),
         bottomNavigationBar: ContactBar(detail: d),
       ),
     );
@@ -47,9 +68,10 @@ class PropertyDetailScreen extends ConsumerWidget {
 }
 
 class _DetailView extends ConsumerStatefulWidget {
-  const _DetailView({required this.detail});
+  const _DetailView({required this.detail, this.heroTag});
 
   final PropertyDetail detail;
+  final String? heroTag;
 
   @override
   ConsumerState<_DetailView> createState() => _DetailViewState();
@@ -98,6 +120,7 @@ class _DetailViewState extends ConsumerState<_DetailView> {
               topPadding: topPadding,
               onPageChanged: (i) => setState(() => _index = i),
               onOpenGallery: _openGallery,
+              heroTag: widget.heroTag,
             );
           }),
         ),
@@ -118,6 +141,7 @@ class _HeroHeader extends ConsumerWidget {
     required this.topPadding,
     required this.onPageChanged,
     required this.onOpenGallery,
+    this.heroTag,
   });
 
   final PropertyDetail detail;
@@ -127,6 +151,7 @@ class _HeroHeader extends ConsumerWidget {
   final double topPadding;
   final ValueChanged<int> onPageChanged;
   final VoidCallback onOpenGallery;
+  final String? heroTag;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -147,20 +172,23 @@ class _HeroHeader extends ConsumerWidget {
         controller: pages,
         itemCount: media.length,
         onPageChanged: onPageChanged,
-        itemBuilder: (_, i) => GestureDetector(
-          onTap: expanded ? onOpenGallery : null,
-          child: CachedNetworkImage(
-            imageUrl: media[i].url,
-            fit: BoxFit.cover,
-            width: double.infinity,
-            height: double.infinity,
-            placeholder: (_, _) => const Skeleton(height: double.infinity, radius: 0),
-            errorWidget: (_, _, _) => ColoredBox(
-              color: scheme.surfaceContainerHighest,
-              child: Center(child: Icon(Icons.broken_image_outlined, size: 48, color: scheme.outline)),
+        itemBuilder: (_, i) {
+          final photo = GestureDetector(
+            onTap: expanded ? onOpenGallery : null,
+            child: CachedNetworkImage(
+              imageUrl: media[i].url,
+              fit: BoxFit.cover,
+              width: double.infinity,
+              height: double.infinity,
+              placeholder: (_, _) => const Skeleton(height: double.infinity, radius: 0),
+              errorWidget: (_, _, _) => ColoredBox(
+                color: scheme.surfaceContainerHighest,
+                child: Center(child: Icon(Icons.broken_image_outlined, size: 48, color: scheme.outline)),
+              ),
             ),
-          ),
-        ),
+          );
+          return (i == 0 && heroTag != null) ? Hero(tag: heroTag!, child: photo) : photo;
+        },
       );
     }
 
@@ -281,6 +309,13 @@ class _HeroHeader extends ConsumerWidget {
               ),
             ),
           ),
+          _CircleButton(
+            t: t,
+            tooltip: 'مشاركة',
+            icon: Icons.ios_share,
+            onPressed: () => shareListing(p),
+          ),
+          const SizedBox(width: 4),
           _CircleButton(
             t: t,
             tooltip: isFavorite ? 'إزالة من المفضلة' : 'إضافة إلى المفضلة',
